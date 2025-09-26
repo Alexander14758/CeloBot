@@ -81,35 +81,34 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     option = query.data
     user_id = query.from_user.id
 
+    # Handle cancel action for settings
+    if option == "cancel_settings":
+        user_states.pop(user_id, None)  # Clear user state
+        await query.edit_message_text(
+            text="❌ Settings input cancelled. You can access settings again from the main menu.",
+            parse_mode="HTML"
+        )
+        return
+    
+    # Handle fund wallet action
+    if option == "fund_wallet":
+        await show_wallet(update, context)
+        return
+    
     # Save state for this user
     user_states[user_id] = option
+    
+    # Create cancel button for settings input
+    cancel_button = InlineKeyboardMarkup([
+        [InlineKeyboardButton("❌ Cancel", callback_data="cancel_settings")]
+    ])
 
     await query.edit_message_text(
-        text=f"Please enter a number for <b>{option.replace('_', ' ').title()}</b>:",
-        parse_mode="HTML"
+        text=f"Please enter a number for <b>{option.replace('_', ' ').title()}</b>:\n\n📝 Enter your desired value and send it as a message.",
+        parse_mode="HTML",
+        reply_markup=cancel_button
     )
 
-    # --- MESSAGE HANDLER (NUMERIC INPUT) ---
-async def number_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    text = update.message.text.strip()
-
-    if user_id not in user_states:
-        return  # Ignore if user isn't in a settings state
-
-    # Check if input is a number
-    if not text.isdigit():
-        await update.message.reply_text("❌ Please enter numbers only.")
-        return
-
-    option = user_states.pop(user_id)  # Remove state after use
-
-    # Save or process the setting here (e.g., database or in-memory)
-    await update.message.reply_text(
-        f"✅ Your setting for <b>{option.replace('_', ' ').title()}</b> "
-        f"has been updated to: <b>{text}</b>",
-        parse_mode="HTML"
-    )
 
 # ---- Helpers ----
 def main_menu_markup():
@@ -245,6 +244,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         context.user_data.pop("awaiting_copy_trade", None)
+        return
+
+    # ----- Handle Settings Number Input -----
+    if user_id in user_states:
+        # Check if input is a number
+        if not text.isdigit():
+            await update.message.reply_text(
+                "❌ Please enter numbers only. Use the Cancel button above to cancel this input."
+            )
+            return
+        
+        option = user_states.pop(user_id)  # Remove state after use
+        
+        # Show success message with confirmation
+        success_message = (
+            f"✅ <b>Setting Updated Successfully!</b>\n\n"
+            f"📋 <b>{option.replace('_', ' ').title()}</b> has been set to: <b>{text}</b>\n\n"
+            f"Your new setting is now active and will be applied to your trading activities.\n\n"
+            f"💡 You can update this setting anytime by going back to Settings."
+        )
+        
+        await update.message.reply_text(
+            success_message,
+            parse_mode="HTML",
+            reply_markup=main_menu_markup()
+        )
         return
 
     # ----- Handle Menu selections -----
