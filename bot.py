@@ -46,12 +46,6 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.answer()
         await update.callback_query.message.reply_text(wallet_text, parse_mode="HTML")
 
-        # --- Button Handler ---
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-
-    if query.data == "fund_wallet":
-        await show_wallet(update, context)
 
 
 # --- Continue with your other handlers (like bot guide, wallet, etc.) ---
