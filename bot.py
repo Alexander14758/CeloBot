@@ -414,8 +414,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "🤖Bot Guide":
         guide_text = (
-            "📘 <b>How to Use hexa_ai Bot: Complete Feature Guide</b>\n\n"
-            "Welcome to <b>hexa_ai Bot</b>, your all-in-one Telegram trading assistant. "
+            "📘 <b>How to Use Celo_ai Bot: Complete Feature Guide</b>\n\n"
+            "Welcome to <b>Celo_ai Bot</b>, your all-in-one Telegram trading assistant. "
             "This guide walks you through the core features, how to use them safely, "
             "and why some security restrictions are in place.\n\n"
 
