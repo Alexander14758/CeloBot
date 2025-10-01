@@ -1,0 +1,9 @@
+python-telegram-bot[all]==22.4
+solders
+pynacl
+base58
+python-dotenv
+base58
+pynacl
+python-dotenv
+solders

