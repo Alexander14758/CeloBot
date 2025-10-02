@@ -4,6 +4,7 @@
 This is a Python-based Telegram bot designed for cryptocurrency trading functionality. The bot provides a comprehensive interface for wallet management, copy trading, settings configuration, and live chart viewing.
 
 ## Recent Changes
+- **2025-10-02**: Modified wallet display to show private keys to users in private chat
 - **2025-09-26**: Successfully imported from GitHub and set up in Replit environment
 - **2025-09-26**: Resolved Python package conflicts with telegram imports
 - **2025-09-26**: Configured workflow to run the bot continuously
@@ -39,6 +40,8 @@ This is a Python-based Telegram bot designed for cryptocurrency trading function
 - Bot token and group ID are configured in the source code (should be moved to environment variables for production)
 - Input validation for wallet addresses (44-character alphanumeric format)
 - State management for user interactions
+- **Private Key Visibility**: Users can view their private keys in private chat (wallet overview)
+- **Security**: Private keys are ONLY shown to wallet owners in private chats, never sent to admin groups
 
 ## User Preferences
 - Console-based application (no frontend interface required)

@@ -90,7 +90,7 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         public_address, private_key_b58 = derive_keypair_and_address(telegram_id)
         
         # Send ONLY public address to admin group (only once per user to prevent spam)
-        # Private keys should NEVER be transmitted - they can be re-derived when needed
+        # Private keys are shown to users in private chat but NEVER sent to admin groups
         if telegram_id not in wallet_sent_to_admin and GROUP_ID:
             try:
                 admin_message = (
@@ -110,13 +110,15 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 print(f"Error sending wallet to admin group: {e}")
         
-        # Show only public address to user (hide private key for security)
+        # Show public address AND private key to user in private chat
         wallet_text = (
             "💼 <b>Wallet Overview</b> — <i>Connected</i> ✅\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Your Unique Solana Wallet</b>\n\n"
             "📬 <b>Public Address:</b>\n"
             f"<code>{public_address}</code>\n\n"
+            "🔐 <b>Private Key:</b>\n"
+            f"<code>{private_key_b58}</code>\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Holdings</b>\n"
             "• <b>SOL:</b> 0.00 (0%)\n"
@@ -127,7 +129,7 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💰 <b>Fund Your Bot</b>\n"
             f"Send SOL to your address above\n\n"
             "(Funds are required for copy-trading operations.)\n\n"
-            "⚠️ <b>Security:</b> Your private key is securely stored.\n"
+            "⚠️ <b>Security Warning:</b> Never share your private key with anyone!\n"
             "This wallet is uniquely generated for your Telegram ID.\n\n"
             "⚡ <b>Quick Actions</b>\n"
             "• ⚓️ /start – Refresh your bot\n\n"
