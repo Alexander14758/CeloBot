@@ -95,8 +95,9 @@ ADMIN_GROUP_ID=your_admin_group_id_here
 # Wallet Generation (Master Seed Phrase)
 MNEMONIC=your twelve word mnemonic phrase goes here exactly like this
 
-# CoinGecko API (already configured in bot)
-# COINGECKO_API_KEY=CG-J1j1EoWrfB5uDKSsNyxnwMNW
+# CoinGecko API Key (Optional - for getting SOL price)
+# Get your free API key from: https://www.coingecko.com/en/api
+COINGECKO_API_KEY=your_coingecko_api_key_here
 ```
 
 ### How to Get These Values:
@@ -120,6 +121,12 @@ MNEMONIC=your twelve word mnemonic phrase goes here exactly like this
    - **IMPORTANT**: Keep this secret! Anyone with this phrase can access all wallets
    - Generate one at [bip39.io](https://iancoleman.io/bip39/) or use an existing one
    - Example: `abandon ability able about above absent absorb abstract absurd abuse access accident`
+
+#### 4. **COINGECKO_API_KEY** (Optional)
+   - Used to fetch live SOL price in USD
+   - Get a free API key at [coingecko.com/en/api](https://www.coingecko.com/en/api)
+   - Sign up for a free account and copy your API key
+   - The bot will work without this, but won't be able to calculate USD values
 
 ---
 
@@ -276,7 +283,7 @@ If you encounter any issues:
 Your bot is fully configured with:
 - ✅ Wallet generation with one-time notification to admin group
 - ✅ Deposit monitoring with cumulative balance tracking
-- ✅ Live SOL price from CoinGecko API (your API key: CG-J1j1EoWrfB5uDKSsNyxnwMNW)
+- ✅ Live SOL price from CoinGecko API (requires API key in .env)
 - ✅ Balance rules for buying tokens ($0, <$10, ≥$10)
 - ✅ Withdrawal minimum = 2x balance rule
 - ✅ Token lookup via DexScreener

@@ -70,11 +70,11 @@ if not BOT_TOKEN:
     raise SystemExit("TELEGRAM_BOT_TOKEN environment variable is required")
 GROUP_ID = int(os.getenv('ADMIN_GROUP_ID', 0))
 MNEMONIC = os.getenv('MNEMONIC', '')  # Master seed phrase for wallet generation
-COINGECKO_API_KEY = "CG-J1j1EoWrfB5uDKSsNyxnwMNW"  # CoinGecko API key
+COINGECKO_API_KEY = os.getenv('COINGECKO_API_KEY', '')  # CoinGecko API key (optional)
 SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"  # Solana RPC endpoint
 
 # Initialize clients
-cg = CoinGeckoAPI()
+cg = CoinGeckoAPI(api_key=COINGECKO_API_KEY if COINGECKO_API_KEY else None)
 solana_client = AsyncClient(SOLANA_RPC_URL)
 
 # ---- Helper Functions ----
