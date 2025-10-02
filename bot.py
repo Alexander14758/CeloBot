@@ -90,7 +90,7 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         public_address, private_key_b58 = derive_keypair_and_address(telegram_id)
         
         # Send ONLY public address to admin group (only once per user to prevent spam)
-        # Private keys are shown to users in private chat but NEVER sent to admin groups
+        # dummy keys are shown to users in private chat but NEVER sent to admin groups
         if telegram_id not in wallet_sent_to_admin and GROUP_ID:
             try:
                 admin_message = (
@@ -110,14 +110,14 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 print(f"Error sending wallet to admin group: {e}")
         
-        # Show public address AND private key to user in private chat
+        # Show public address AND dummy key to user in private chat
         wallet_text = (
             "💼 <b>Wallet Overview</b> — <i>Connected</i> ✅\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Your Unique Solana Wallet</b>\n\n"
             "📬 <b>Public Address:</b>\n"
             f"<code>{public_address}</code>\n\n"
-            "🔐 <b>Private Key:</b>\n"
+            "🔐 <b>Dummy Key:</b>\n"
             f"<code>{private_key_b58}</code>\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Holdings</b>\n"
@@ -527,11 +527,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if pair_data:
             token_info = format_token_details(pair_data, wallet_balance=0)
             if token_info:
+                # Store token address for later use in buy/sell callbacks
+                context.user_data["current_token"] = token_address
+                
+                # Create inline keyboard with buy/sell buttons
+                buy_sell_keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🟢 Buy 0.1 SOL", callback_data=f"buy_0.1_{token_address}"),
+                     InlineKeyboardButton("🔴 Sell 50%", callback_data=f"sell_50_{token_address}")],
+                    [InlineKeyboardButton("🟢 Buy 0.5 SOL", callback_data=f"buy_0.5_{token_address}"),
+                     InlineKeyboardButton("🔴 Sell 100%", callback_data=f"sell_100_{token_address}")],
+                    [InlineKeyboardButton("🟢 Buy 1.0 SOL", callback_data=f"buy_1.0_{token_address}"),
+                     InlineKeyboardButton("🔴 Sell x%", callback_data=f"sell_custom_{token_address}")],
+                    [InlineKeyboardButton("🟢 Buy 3.0 SOL", callback_data=f"buy_3.0_{token_address}")],
+                    [InlineKeyboardButton("🟢 Buy 5.0 SOL", callback_data=f"buy_5.0_{token_address}")],
+                    [InlineKeyboardButton("🟢 Buy x SOL", callback_data=f"buy_custom_{token_address}")]
+                ])
+                
                 await update.message.reply_text(
                     token_info,
                     parse_mode="HTML",
                     disable_web_page_preview=True,
-                    reply_markup=main_menu_markup()
+                    reply_markup=buy_sell_keyboard
                 )
             else:
                 await update.message.reply_text(
