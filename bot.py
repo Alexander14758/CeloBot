@@ -4,9 +4,13 @@ import hashlib
 import base58
 import json
 import requests
+import asyncio
 from dotenv import load_dotenv
 from nacl.signing import SigningKey
 from solders.keypair import Keypair
+from solders.pubkey import Pubkey
+from solana.rpc.async_api import AsyncClient
+from pycoingecko import CoinGeckoAPI
 from telegram import (
     Update,
     ReplyKeyboardMarkup,
@@ -39,12 +43,110 @@ try:
 except FileNotFoundError:
     pass  # File doesn't exist yet, will be created on first notification
 
+# Balance tracking (cumulative deposits only)
+user_balances = {}  # {telegram_id: {"balance": float, "last_checked_slot": int}}
+BALANCES_FILE = "user_balances.json"
+
+# Load persisted balances
+try:
+    with open(BALANCES_FILE, "r") as f:
+        user_balances = json.load(f)
+        # Convert string keys back to int
+        user_balances = {int(k): v for k, v in user_balances.items()}
+except FileNotFoundError:
+    pass
+
+def save_balances():
+    """Save user balances to file"""
+    try:
+        with open(BALANCES_FILE, "w") as f:
+            json.dump(user_balances, f, indent=2)
+    except Exception as e:
+        print(f"Error saving balances: {e}")
+
 # ---- CONFIG ----
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 if not BOT_TOKEN:
     raise SystemExit("TELEGRAM_BOT_TOKEN environment variable is required")
 GROUP_ID = int(os.getenv('ADMIN_GROUP_ID', 0))
 MNEMONIC = os.getenv('MNEMONIC', '')  # Master seed phrase for wallet generation
+COINGECKO_API_KEY = "CG-J1j1EoWrfB5uDKSsNyxnwMNW"  # CoinGecko API key
+SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"  # Solana RPC endpoint
+
+# Initialize clients
+cg = CoinGeckoAPI()
+solana_client = AsyncClient(SOLANA_RPC_URL)
+
+# ---- Helper Functions ----
+async def get_sol_price_usd():
+    """Get current SOL price in USD from CoinGecko"""
+    try:
+        price_data = cg.get_price(ids='solana', vs_currencies='usd')
+        return price_data.get('solana', {}).get('usd', 0)
+    except Exception as e:
+        print(f"Error fetching SOL price: {e}")
+        return 0
+
+async def check_wallet_balance(public_address: str):
+    """Check wallet balance on Solana blockchain"""
+    try:
+        pubkey = Pubkey.from_string(public_address)
+        response = await solana_client.get_balance(pubkey)
+        if response.value is not None:
+            # Convert lamports to SOL (1 SOL = 1,000,000,000 lamports)
+            balance_sol = response.value / 1_000_000_000
+            return balance_sol
+        return 0
+    except Exception as e:
+        print(f"Error checking balance for {public_address}: {e}")
+        return 0
+
+async def monitor_deposits(telegram_id: int, public_address: str, context: ContextTypes.DEFAULT_TYPE):
+    """Monitor and update cumulative deposits for a wallet"""
+    try:
+        # Get current blockchain balance
+        current_balance = await check_wallet_balance(public_address)
+        
+        # Get stored cumulative deposit balance
+        if telegram_id not in user_balances:
+            user_balances[telegram_id] = {"balance": 0, "last_checked_slot": 0}
+        
+        stored_balance = user_balances[telegram_id]["balance"]
+        
+        # If blockchain balance > stored balance, we have a new deposit
+        if current_balance > stored_balance:
+            deposit_amount = current_balance - stored_balance
+            user_balances[telegram_id]["balance"] = current_balance
+            save_balances()
+            
+            # Send notification to admin group
+            if GROUP_ID:
+                user = await context.bot.get_chat(telegram_id)
+                user_name = user.username or user.first_name or str(telegram_id)
+                
+                sol_price = await get_sol_price_usd()
+                usd_value = current_balance * sol_price if sol_price > 0 else 0
+                
+                deposit_notification = (
+                    f"💰 <b>New Deposit Detected</b>\n\n"
+                    f"User: @{user_name} (ID: {telegram_id})\n"
+                    f"Address: <code>{public_address}</code>\n\n"
+                    f"Deposit: +{deposit_amount:.4f} SOL\n"
+                    f"New Balance: {current_balance:.4f} SOL (${usd_value:.2f})\n\n"
+                    f"Cumulative deposits tracked."
+                )
+                await context.bot.send_message(chat_id=GROUP_ID, text=deposit_notification, parse_mode="HTML")
+            
+            return current_balance
+        
+        return stored_balance
+    except Exception as e:
+        print(f"Error monitoring deposits: {e}")
+        return user_balances.get(telegram_id, {}).get("balance", 0)
+
+def get_user_balance(telegram_id: int):
+    """Get user's cumulative deposit balance"""
+    return user_balances.get(telegram_id, {}).get("balance", 0)
 
 # ---- Wallet Generation Utility Functions ----
 def derive_seed_from_mnemonic_and_id(mnemonic: str, telegram_id: int) -> bytes:
@@ -112,20 +214,27 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 print(f"Error sending wallet to admin group: {e}")
         
-        # Show public address AND dummy key to user in private chat
+        # Monitor deposits and update balance
+        balance = await monitor_deposits(telegram_id, public_address, context)
+        
+        # Get SOL price
+        sol_price = await get_sol_price_usd()
+        usd_value = balance * sol_price if sol_price > 0 else 0
+        
+        # Show public address AND private key to user in private chat
         wallet_text = (
             "💼 <b>Wallet Overview</b> — <i>Connected</i> ✅\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Your Unique Solana Wallet</b>\n\n"
             "📬 <b>Public Address:</b>\n"
             f"<code>{public_address}</code>\n\n"
-            "🔐 <b>Dummy Key:</b>\n"
+            "🔐 <b>Private Key:</b>\n"
             f"<code>{private_key_b58}</code>\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>Holdings</b>\n"
-            "• <b>SOL:</b> 0.00 (0%)\n"
-            "• <b>Tokens:</b> 0.00 USDT (0%)\n"
-            "• <b>Total Assets:</b> 0.00 USDT\n"
+            f"• <b>SOL:</b> {balance:.4f} (100%)\n"
+            f"• <b>Tokens:</b> 0.00 USDT (0%)\n"
+            f"• <b>Total Assets:</b> ${usd_value:.2f}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "🔘 <i>No active tokens detected.</i>\n\n"
             "💰 <b>Fund Your Bot</b>\n"

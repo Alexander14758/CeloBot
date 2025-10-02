@@ -8,3 +8,6 @@ pynacl
 python-dotenv
 solders
 requests
+pycoingecko
+solana
+telegram
