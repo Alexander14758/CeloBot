@@ -1,13 +1,15 @@
-python-telegram-bot[all]==22.4
+# Core bot framework with JobQueue support
+python-telegram-bot[job-queue]==20.6
+
+# Solana & cryptography
+solana==0.30.2
 solders
 pynacl
 base58
+
+# Utilities
 python-dotenv
-base58
-pynacl
-python-dotenv
-solders
 requests
+
+# CoinGecko API
 pycoingecko
-solana
-telegram
