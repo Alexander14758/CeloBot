@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TikTok Profile Lookup</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f3f3;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 450px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #000;
+      color: #fff;
+      cursor: pointer;
+      border: none;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 8px;
+      display: none;
+    }
+    img {
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="box">
+    <h2>TikTok Profile Lookup</h2>
+    <input id="username" type="text" placeholder="Enter TikTok username e.g. charlidamelio">
+    <button onclick="lookup()">Search</button>
+
+    <div id="result"></div>
+  </div>
+
+<script>
+async function lookup() {
+  const user = document.getElementById("username").value.trim();
+  const result = document.getElementById("result");
+
+  if (!user) return alert("Enter a username");
+
+  result.style.display = "block";
+  result.innerHTML = "Loading...";
+
+  const url = `https://tiktok-scraper7.p.rapidapi.com/user/info?unique_id=${user}`;
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "x-rapidapi-key": "deb75bfdadmsha4975a87390b64ep134e56jsn529f23455028",
+        "x-rapidapi-host": "tiktok-scraper7.p.rapidapi.com"
+      }
+    });
+
+    const json = await response.json();
+
+    if (!json.data || !json.user) {
+      result.innerHTML = "User not found.";
+      return;
+    }
+
+    const u = json.data.user;
+    const s = json.data.stats;
+
+    result.innerHTML = `
+      <img src="${u.avatarMedium}" width="130"><br><br>
+      <strong>@${u.uniqueId}</strong><br>
+      Nickname: ${u.nickname}<br><br>
+      Followers: ${s.followerCount}<br>
+     
+    `;
+
+  } catch (error) {
+    result.innerHTML = "Error fetching profile.";
+    console.error(error);
+  }
+}
+</script>
+
+
+</body>
+</html>
+
+
+
+
+ Following: ${s.followingCount}<br>
+      Likes: ${s.heartCount}<br>
+      Videos: ${s.videoCount}<br>
