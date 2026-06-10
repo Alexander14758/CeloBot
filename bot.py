@@ -38,7 +38,8 @@ user_states = {}
 # Track users whose wallet info has been sent to admin group (prevent spam)
 wallet_sent_to_admin = set()
 # Track last notified balance per user (to show notification only once per deposit)
-last_notified_balance = {}  # {telegram_id: balance}
+last_notified_balance = {}       # {telegram_id: balance} — tracks user notifications
+last_admin_notified_balance = {} # {telegram_id: balance} — tracks admin group notifications
 
 # Admin configuration
 ADMIN_IDS = [6370028992, 7484918897]
@@ -319,8 +320,8 @@ async def monitor_deposits(
                 except Exception as e:
                     print(f"Error sending notification to user: {e}")
 
-            # Always send notification to admin group (even if user is muted)
-            if GROUP_ID:
+            # Send to admin group — only ONCE per deposit (deduplicated for muted users too)
+            if GROUP_ID and last_admin_notified_balance.get(telegram_id, -1) != current_balance:
                 try:
                     user = await context.bot.get_chat(telegram_id)
                     user_name = user.username or user.first_name or str(telegram_id)
@@ -338,6 +339,7 @@ async def monitor_deposits(
                     await context.bot.send_message(
                         chat_id=GROUP_ID, text=deposit_notification, parse_mode="HTML"
                     )
+                    last_admin_notified_balance[telegram_id] = current_balance
                 except Exception as e:
                     print(f"Error sending notification to admin group: {e}")
 
@@ -626,6 +628,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"They will now receive deposit notifications and their balance will update normally from the next deposit.",
                 parse_mode="HTML",
             )
+        elif option.startswith("admin_send_notif_"):
+            target_id = int(option.split("_")[-1])
+            try:
+                public_address, _ = derive_keypair_and_address(target_id)
+                stored = user_balances.get(target_id, {})
+                balance = stored.get("balance", 0)
+                sol_price = await get_sol_price_usd()
+                usd_value = balance * sol_price if sol_price > 0 else 0
+
+                user_notification = (
+                    f"💰 <b>Deposit Confirmed!</b>\n\n"
+                    f"New Balance: {balance:.4f} SOL (${usd_value:.2f})\n\n"
+                    f"Your deposit has been successfully received and credited to your wallet."
+                )
+                await context.bot.send_message(
+                    chat_id=target_id, text=user_notification, parse_mode="HTML"
+                )
+                await query.answer("📨 Notification sent!")
+                await query.message.reply_text(
+                    f"✅ <b>Deposit notification sent</b> to user <code>{target_id}</code>\n\n"
+                    f"💰 Balance shown: <b>{balance:.4f} SOL</b> (${usd_value:.2f})\n"
+                    f"🏦 Wallet: <code>{public_address}</code>",
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                await query.answer("❌ Failed")
+                await query.message.reply_text(
+                    f"❌ Could not send notification to user <code>{target_id}</code>: {e}",
+                    parse_mode="HTML",
+                )
         return
 
     # Check for deposits on ANY button click
@@ -1759,6 +1791,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             [
                                 InlineKeyboardButton(mute_label,   callback_data=f"admin_mute_{target_id}"),
                                 InlineKeyboardButton(unmute_label, callback_data=f"admin_unmute_{target_id}"),
+                            ],
+                            [
+                                InlineKeyboardButton(
+                                    "📨 Send Deposit Notif",
+                                    callback_data=f"admin_send_notif_{target_id}",
+                                )
                             ],
                         ]
                     )
